@@ -1,0 +1,84 @@
+{
+  "controllers": {},
+  "folders": {
+    "Déclenchement": {
+      "controllers": {
+        "Active": true,
+        "Mode": "Maintenir pour activer",
+        "Fondu (s)": 0.5
+      },
+      "folders": {}
+    },
+    "Répulsion": {
+      "controllers": {
+        "Force": 1,
+        "Rayon": 1.4,
+        "Bord bruité": 0.5
+      },
+      "folders": {}
+    },
+    "Curl noise (autour)": {
+      "controllers": {
+        "Épaisseur de la couronne": 3.2,
+        "Douceur du bord": 0.88,
+        "Force": 0.4,
+        "Fréquence": 1.35,
+        "Octaves": 3,
+        "Défilement X": 0.0499999999999998,
+        "Défilement Y": -0.01,
+        "Défilement Z": 0.0499999999999998,
+        "Graine": 0,
+        "Durée du sillage (s)": 3,
+        "Espacement du sillage": 0.25
+      },
+      "folders": {}
+    },
+    "Objectif": {
+      "controllers": {
+        "Focale (mm)": 24,
+        "FOV (°)": 40,
+        "Mise au point (m)": 0.769927501678467,
+        "Ouverture (flou)": 0,
+        "Autofocus (centre)": false,
+        "Vitesse autofocus (s)": 0.25
+      },
+      "folders": {}
+    },
+    "HUD": {
+      "controllers": {
+        "Afficher": true,
+        "Opacité": 0.3
+      },
+      "folders": {}
+    },
+    "Scènes": {
+      "controllers": {
+        "Scène": "ERM_Fk3110_4728.ply",
+        "Revenir au départ": true
+      },
+      "folders": {}
+    },
+    "Photo": {
+      "controllers": {
+        "Résolution photo": 2,
+        "Format": "PNG",
+        "Flash à l'écran": true,
+        "Aperçu en vignette": true,
+        "Durée de l'aperçu (s)": 3,
+        "Taille de l'aperçu (px)": 240
+      },
+      "folders": {}
+    },
+    "Performance": {
+      "controllers": {
+        "Résolution de rendu": 0.5,
+        "Étendue des splats": 2
+      },
+      "folders": {}
+    },
+    "Réglages": {
+      "controllers": {},
+      "folders": {}
+    }
+  }
+}

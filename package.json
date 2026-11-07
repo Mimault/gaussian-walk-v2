@@ -1,0 +1,19 @@
+{
+  "name": "gaussian-walk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^8.3.0"
+  },
+  "dependencies": {
+    "@sparkjsdev/spark": "^2.2.0",
+    "lil-gui": "^0.21.0",
+    "three": "^0.186.1"
+  }
+}
