@@ -187,10 +187,7 @@ const params = {
   // Photo
   photoResolution: 2,   // résolution des photos, indépendante de la résolution de rendu (2 = Retina complet)
   photoFormat: "PNG",   // PNG = sans perte, fichiers lourds ; JPEG = plus léger
-  flashLumiere: true,   // au déclenchement, un flash éclaire la scène un bref instant (il n'est pas sur la photo)
-  flashForce: 2.0,      // intensité du flash
-  flashPortee: 3,       // distance à laquelle la lumière du flash a faibli de moitié
-  flashAngle: 60,       // demi-angle du cône éclairé, en degrés
+  flashLumiere: true,   // au déclenchement, un écran blanc bref (il n'est pas sur la photo)
   flashDuree: 0.5,      // secondes pour que le flash s'éteigne
   apercu: true,         // affiche la photo en vignette en bas à gauche
   apercuDuree: 3,       // secondes d'affichage de la vignette
@@ -248,10 +245,6 @@ const u = {
   heightOrder: dyno.dynoFloat(params.ordreHauteur),
 
   // Flash lumineux
-  flash:      dyno.dynoFloat(0),
-  flashForce: dyno.dynoFloat(params.flashForce),
-  flashRange: dyno.dynoFloat(params.flashPortee),
-  flashCos:   dyno.dynoFloat(Math.cos(THREE.MathUtils.degToRad(params.flashAngle))),
 
   // V2 : cadre de la photo, vu depuis son point de vue (l'origine du monde)
   horsCadre:   dyno.dynoFloat(1),                                 // taille des splats hors du cadre (1 = normale)
@@ -415,10 +408,6 @@ function makeForcesModifier(grow, fall, dMin, dMax, origin) {
           packs: "float",
           packSize: "float",
           heightOrder: "float",
-          flash: "float",       // intensité du flash en cours (0 = éteint)
-          flashForce: "float",
-          flashRange: "float",
-          flashCos: "float",    // cosinus du demi-angle du cône du flash
           dMin: "float",   // distance des gaussiennes les plus proches de la caméra (propre à chaque scène)
           dMax: "float",   // distance des plus lointaines
           origin: "vec3",  // position de la caméra au début de la phase, pour mesurer ces distances
@@ -550,19 +539,6 @@ function makeForcesModifier(grow, fall, dMin, dMax, origin) {
               ${outputs.gsplat}.scales *= appear;
               if (appear <= 0.0) ${outputs.gsplat}.rgba.a = 0.0;
             }
-
-            // Flash de l'appareil photo : éclaire brièvement ce qui est devant la caméra.
-            // La lumière faiblit avec la distance et sur les bords du cône du flash.
-            if (${inputs.flash} > 0.0) {
-              vec3 lr = c - ${inputs.camPos};
-              float ld = max(length(lr), 1e-3);
-              float cone = smoothstep(${inputs.flashCos}, mix(${inputs.flashCos}, 1.0, 0.5), dot(lr / ld, fwd));
-              float x = ld / ${inputs.flashRange};
-              float fall = 1.0 / (1.0 + x * x);            // la lumière faiblit avec la distance
-              float k = ${inputs.flash} * ${inputs.flashForce} * fall * cone;
-              // On éclaircit la couleur (texture conservée) et on relève un peu les zones sombres
-              ${outputs.gsplat}.rgba.rgb = ${outputs.gsplat}.rgba.rgb * (1.0 + k) + vec3(0.12 * k);
-            }
           }
         `),
       });
@@ -594,10 +570,6 @@ function makeForcesModifier(grow, fall, dMin, dMax, origin) {
         packs: u.packs,
         packSize: u.packSize,
         heightOrder: u.heightOrder,
-        flash: u.flash,
-        flashForce: u.flashForce,
-        flashRange: u.flashRange,
-        flashCos: u.flashCos,
         dMin,
         dMax,
         origin,
@@ -799,10 +771,7 @@ fPhoto.add({ prendre: () => requestPhoto() }, "prendre").name("📷 Prendre une 
 fPhoto.add({ galerie: () => toggleGallery() }, "galerie").name("🖼 Ouvrir / fermer la galerie");
 fPhoto.add(params, "photoResolution", 0.5, 3, 0.25).name("Résolution photo");
 fPhoto.add(params, "photoFormat", ["PNG", "JPEG"]).name("Format");
-fPhoto.add(params, "flashLumiere").name("Flash lumineux");
-fPhoto.add(params, "flashForce", 0, 6, 0.05).name("Intensité du flash");
-fPhoto.add(params, "flashPortee", 0.2, 20, 0.1).name("Portée du flash");
-fPhoto.add(params, "flashAngle", 10, 90, 1).name("Angle du flash (°)");
+fPhoto.add(params, "flashLumiere").name("Flash blanc");
 fPhoto.add(params, "flashDuree", 0.05, 3, 0.05).name("Durée du flash (s)");
 fPhoto.add(params, "apercu").name("Aperçu en vignette");
 fPhoto.add(params, "apercuDuree", 0.5, 10, 0.5).name("Durée de l'aperçu (s)");
@@ -1114,9 +1083,9 @@ function updateLens(dt) {
 // puis on s'arrête jusqu'au prochain déclenchement.
 let wasIdle = false;
 
-// ---------- Flash lumineux ----------
-// Retour visuel du déclenchement : juste APRÈS la prise de vue (la photo n'est pas éclairée),
-// le flash passe à 1 (voir takePhoto), puis s'éteint progressivement.
+// ---------- Flash de la prise de vue ----------
+// Retour visuel du déclenchement : juste APRÈS la prise de vue, un écran blanc (flashDiv) passe à 1
+// (voir takePhoto), puis s'éteint progressivement. Les gaussians ne changent pas.
 let flashLevel = 0;
 
 function updateFlash(dt) {
@@ -1127,7 +1096,7 @@ function updateFlash(dt) {
 }
 
 function isIdle() {
-  return effectLevel < 0.001 && flashLevel === 0; // le flash demande aussi de recalculer les gaussiennes
+  return effectLevel < 0.001;
 }
 
 function updateForces(elapsed) {
@@ -1166,11 +1135,6 @@ function updateForces(elapsed) {
   u.packs.value = params.paquets;
   u.packSize.value = params.paquetTaille;
   u.heightOrder.value = params.ordreHauteur;
-
-  u.flash.value = flashLevel;
-  u.flashForce.value = params.flashForce;
-  u.flashRange.value = params.flashPortee;
-  u.flashCos.value = Math.cos(THREE.MathUtils.degToRad(params.flashAngle));
 
   // V2 : taille hors cadre, pilotée par la séquence ; un changement demande un recalcul
   const horsCadreChange = u.horsCadre.value !== horsCadreActuel || u.tailleGlobale.value !== tailleGlobaleActuelle;
@@ -1717,13 +1681,17 @@ function updatePhoto() {
     if (!params.seqActive || (transition && transition.phase === "in")) cadreFondu = 1;
     if (!params.seqActive) cadreTrace = 1;
   }
+  // Monde suivant demandé : le cadre et la photo s'effacent pendant la première moitié de la disparition
+  if (transition && transition.phase === "out") cadreFondu = Math.min(cadreFondu, 1 - fenetre(transition.t, 0, 0.5));
+  // Une séquence interrompue par un changement de monde ne doit pas laisser le flash allumé
+  if (transition || loadingScene) flashBlanc = 0;
   if (photoMat.map !== photoTexMonde) {
     photoMat.map = photoTexMonde;
     photoMat.needsUpdate = true;
   }
   photoMat.opacity = photoOpacite * cadreFondu;
   photoPlan.visible = params.seqPhoto && photoMat.opacity > 0 && !!photoTexMonde;
-  flashDiv.style.opacity = params.seqPhoto ? flashBlanc : 0;
+  flashDiv.style.opacity = Math.max(params.seqPhoto ? flashBlanc : 0, flashLevel); // séquence, ou prise de vue
 }
 
 // ---------- V2 : fiche MuIS, tapée façon terminal en haut à gauche ----------
