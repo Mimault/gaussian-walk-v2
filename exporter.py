@@ -3,6 +3,7 @@
 Copie l'app (sans node_modules ni captures) et, dans <destination>\\mondes, les mondes Marble que la V2
 affiche : pour chaque photo des PROD de raadi_manor et raadi_porte, la version Vn la plus haute qui a un .spz,
 avec ses .spz full_res et 500k, son _cadrage.json, la photo du cadre, et la fiche_muis.json de la photo.
+Même chose pour les splats Postshot des NON_COMMERCIAL (dossier 04_splat ou 04_splat\\Vn).
 La V2 (vite.config.js) lit le dossier « mondes » s'il existe à côté d'elle.
 
 Usage : py -3.12 exporter.py <destination>
@@ -73,6 +74,31 @@ def main():
                     if chemin and Path(chemin).exists():
                         copier(Path(chemin), cible / "03_marble" / version.name / Path(chemin).name, bilan)
             print(f"{corpus:12} {photo.name:22} {version.name}")
+
+    # Les splats Postshot (photos non commerciales)
+    for corpus in CORPUS:
+        racine = ENM / "01_PROJETS" / corpus / "NON_COMMERCIAL"
+        for photo in sorted(p for p in racine.iterdir() if p.is_dir()):
+            base = photo / "04_splat"
+            if not base.exists():
+                continue
+            versions = sorted((v for v in base.iterdir() if v.is_dir() and v.name[1:].isdigit()),
+                              key=lambda v: int(v.name[1:]), reverse=True)
+            dossier = next((d for d in [*versions, base] if list(d.glob("*_cadrage.json")) and list(d.glob("*_500k.spz"))), None)
+            if not dossier:
+                continue
+            cible = dest / "mondes" / corpus / "NON_COMMERCIAL" / photo.name
+            if (photo / "fiche_muis.json").exists():
+                copier(photo / "fiche_muis.json", cible / "fiche_muis.json", bilan)
+            sous = cible / dossier.relative_to(photo)
+            for f in dossier.iterdir():
+                if f.name.endswith(("_full_res.spz", "_500k.spz", "_cadrage.json")):
+                    copier(f, sous / f.name, bilan)
+                if f.name.endswith("_cadrage.json"):
+                    chemin = json.loads(f.read_text(encoding="utf-8")).get("photo")
+                    if chemin and Path(chemin).exists():
+                        copier(Path(chemin), sous / Path(chemin).name, bilan)
+            print(f"{corpus:12} {photo.name:30} {dossier.name}")
 
     total = sum(f.stat().st_size for f in dest.rglob("*") if f.is_file())
     nb = sum(1 for f in dest.rglob("*") if f.is_file())

@@ -1,6 +1,6 @@
 # Gaussian Walk V2 : lancer sur le Mac
 
-Copie autonome de l'app, avec ses mondes Marble dans le dossier `mondes`.
+Copie autonome de l'app, avec ses mondes (Marble et splats Postshot) dans le dossier `mondes`.
 
 ## Première fois
 
@@ -25,6 +25,14 @@ Le code est sur GitHub, dépôt privé https://github.com/Mimault/gaussian-walk-
    - `http://localhost:5173/?densite=500k` charge les mondes allégés (plus fluide).
 3. Accepter l'accès à la caméra quand Chrome le demande (webcam dans le cadre ; rien n'est enregistré).
 4. Pour arrêter : Ctrl + C dans le Terminal.
+
+## Définition maximale
+
+1. Ouvrir http://localhost:5173 **sans** `?densite=500k` : tous les splats sont chargés (Marble 1,92 M, Postshot jusqu'à 3 M). Le message en bas indique `(full_res)`.
+2. Dans le panneau à droite, dossier « Performance » :
+   - « Résolution de rendu » à **2** (Retina complet ; la valeur par défaut est 0,5). Si ça saccade, descendre à 1.
+   - « Étendue des splats » à **2,83** (valeur d'origine de Spark ; 2 par défaut ici pour aller plus vite).
+3. Ces réglages restent enregistrés dans le navigateur. « Réglages », puis « Réinitialiser » les annule.
 
 ## Commandes utiles
 

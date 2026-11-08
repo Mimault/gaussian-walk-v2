@@ -5,7 +5,7 @@
 //   GET  /api/captures-file/…  → renvoie une photo, pour l'afficher dans la galerie
 // et une route pour les scènes :
 //   GET  /api/scenes-list      → liste les splats du dossier public/scenes, par ordre alphabétique
-// V2 : deux routes pour les mondes Marble, lus directement dans 01_PROJETS :
+// V2 : deux routes pour les mondes Marble et les splats Postshot, lus directement dans 01_PROJETS :
 //   GET  /api/mondes-list            → les mondes, par ordre chronologique (voir listeMondes)
 //   GET  /api/mondes-file/<nom.spz>  → renvoie un fichier .spz de cette liste
 
@@ -18,7 +18,7 @@ const SCENES_DIR = path.resolve(process.cwd(), "public", "scenes");
 
 // ---------- Mondes Marble (V2) ----------
 // Dossiers lus : <corpus>\PROD\<année>_<photo>\03_marble\Vn\ (photos libres seulement ;
-// « PROD (licence) » est volontairement exclu).
+// « PROD (licence) » n'existe plus depuis le 8 novembre 2026 : 1945 est séparée entre PROD et NON_COMMERCIAL).
 // Copie autonome (export pour le Mac, voir exporter.py) : les mondes sont dans le dossier « mondes » de l'app,
 // avec la même organisation ; sinon, ceux de 01_PROJETS (PC de recherche).
 const MONDES_LOCAL = path.resolve(process.cwd(), "mondes");
@@ -31,7 +31,7 @@ const DENSITES = ["full_res", "500k"]; // fichiers ERM_…_V<n>_full_res.spz et 
 // Clé de tri chronologique d'un dossier de photo, ex. « B1923_Fk449_217 », « 1914_Fk359_440-12 » :
 // année, puis « B » (= avant cette année) en premier, puis les numéros de la photo, comparés comme des nombres.
 function cleChrono(nom) {
-  const m = nom.match(/^(B?)(\d{4})_(.*)$/);
+  const m = nom.match(/^(B?)(\d{4})(?:-\d{4})?_(.*)$/); // « 1925-1930 » est classée à sa première année
   if (!m) return [9999, 1, []];
   const numeros = (m[3].match(/\d+/g) || []).map(Number);
   return [Number(m[2]), m[1] ? 0 : 1, numeros];
@@ -50,9 +50,50 @@ function compareChrono(a, b) {
 
 // Pour chaque photo : la version Vn la plus haute qui contient au moins un .spz.
 // Une génération en cours (fiche .json sans .spz) est donc ignorée.
+// Splats Postshot des photos non commerciales : <corpus>\NON_COMMERCIAL\<photo>\04_splat\ (ou Vn), avec un
+// _cadrage.json (03_OUTILS\prod\cadrage.py) et des copies .spz lisibles par Spark (03_OUTILS\prod\ply_vers_spz.py).
+function splatsLocaux(corpus) {
+  const racine = path.join(PROJETS_DIR, corpus, "NON_COMMERCIAL");
+  const mondes = [];
+  let photos = [];
+  try {
+    photos = fs.readdirSync(racine, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+  } catch {
+    return mondes;
+  }
+  for (const photo of photos) {
+    const base = path.join(racine, photo, "04_splat");
+    if (!fs.existsSync(base)) continue;
+    const versions = fs.readdirSync(base, { withFileTypes: true }).filter((d) => d.isDirectory() && /^V\d+$/.test(d.name)).map((d) => d.name)
+      .sort((a, b) => Number(b.slice(1)) - Number(a.slice(1)));
+    for (const version of [...versions, ""]) { // la Vn la plus haute, sinon le dossier 04_splat lui-même
+      const dossier = version ? path.join(base, version) : base;
+      const fichiers = fs.readdirSync(dossier);
+      const fc = fichiers.find((n) => n.endsWith("_cadrage.json"));
+      const parDensite = {};
+      for (const densite of DENSITES) {
+        const f = fichiers.find((n) => n.toLowerCase().endsWith(`_${densite}.spz`));
+        if (f) parDensite[densite] = { nom: f, chemin: path.join(dossier, f) };
+      }
+      if (!fc || Object.keys(parDensite).length === 0) continue;
+      let fiche = null;
+      try {
+        fiche = JSON.parse(fs.readFileSync(path.join(racine, photo, "fiche_muis.json"), "utf-8"));
+      } catch {
+        fiche = null;
+      }
+      const cadrage = JSON.parse(fs.readFileSync(path.join(dossier, fc), "utf-8"));
+      mondes.push({ photo, corpus, version: version || "V1", fichiers: parDensite, cadrage, fiche, dossier });
+      break;
+    }
+  }
+  return mondes;
+}
+
 function listeMondes() {
   const mondes = [];
   for (const corpus of CORPUS_MONDES) {
+    mondes.push(...splatsLocaux(corpus));
     const prod = path.join(PROJETS_DIR, corpus, "PROD");
     let photos = [];
     try {

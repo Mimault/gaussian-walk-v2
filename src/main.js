@@ -649,6 +649,13 @@ function densiteDe(monde) {
 function creerMonde(monde) {
   const mesh = makeSplat(MONDES_URL + encodeURIComponent(monde.fichiers[densiteDe(monde)]), 0); // démarre invisible
   mesh.userData.cadrage = monde.cadrage; // point de vue de la photo d'origine (ou null)
+  // Splat Postshot : on le replace pour que le point de vue de la photo soit à l'origine, comme un monde Marble
+  const r = monde.cadrage?.repere;
+  if (r) {
+    const [w, x, y, z] = r.rotation_wxyz;
+    mesh.quaternion.multiply(new THREE.Quaternion(x, y, z, w));
+    mesh.position.fromArray(r.origine).applyQuaternion(mesh.quaternion).negate();
+  }
   mesh.userData.photoTex = chargerPhoto(monde); // photo d'origine, affichée dans le cadre pendant la pose
   mesh.userData.fiche = monde.fiche || null;    // fiche MuIS, pour le HUD
   return mesh;
@@ -1807,6 +1814,14 @@ function texteGeneration(g) {
     lignes.push(`> Pano     ComfyUI · ${p.workflow}${p.version ? ` (${p.version})` : ""}`);
     for (const mod of p.modeles || []) lignes.push(`           ${mod}`);
   }
+  if (g.dataset?.workflow) {
+    lignes.push(`> Dataset  ${g.dataset.outil} · ${g.dataset.workflow}`);
+    for (const mod of g.dataset.modeles || []) lignes.push(`           ${mod}`);
+  }
+  if (g.entrainement) {
+    const e = g.entrainement;
+    lignes.push(`> Training ${e.outil} · ${e.modele} · ${Math.round(e.etapes / 1000)}k steps · ${(e.splats / 1e6).toFixed(2)}M splats`);
+  }
   if (m.outil) lignes.push(`> World    ${m.outil}${m.modele ? ` · ${m.modele}` : ""}${m.variante ? ` ${m.variante}` : ""}`);
   return lignes.length > 1 ? lignes : [];
 }
@@ -1926,7 +1941,7 @@ function lancerSequence() {
   const dirPhoto = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(pdv.pitch, pdv.yaw, 0, "YXZ"));
   const dir = dirPhoto.clone();
   // Cible : premier point du monde touché au centre de la photo, pas plus près que « distance min. »
-  let d = 30;
+  let d = cadrageActuel.repere ? 12 : 30; // un splat Postshot est plus petit qu'un monde Marble
   try {
     raycaster.set(new THREE.Vector3(0, 0, 0), dirPhoto);
     const hits = raycaster.intersectObject(splat, false);
@@ -2015,7 +2030,7 @@ function updateSequence(dt) {
   const kFocale = fenetre(t, P + 0.25 * Ta, tTour0);                  // la focale change pendant l'avancée, avant le tour sur soi
   const kRegard = params.seqRegardCadre * fenetre(t, tOrb0, tOrb0 + 0.5 * To); // pendant l'orbite, le regard glisse vers le cadre 3D
   const h = params.seqTourMontee * fenetre(t, tAv1 + 0.3 * Tt, tTour1)                 // commence à monter pendant le tour
-          + (params.seqMonteeHaut - params.seqTourMontee) * fenetre(t, tRec0, tH2_1); // continue pendant recul et orbite
+          + (params.seqMonteeHaut * (cadrageActuel?.repere?.echelle_sequence ?? 1) - params.seqTourMontee) * fenetre(t, tRec0, tH2_1); // continue pendant recul et orbite ; montée réduite pour les splats Postshot, plus petits
   const recul = (params.seqReculPct / 100) * fenetre(t, tRec0, tRec1);
   const orbite = -THREE.MathUtils.degToRad(params.seqOrbiteAngle) * fenetre(t, tOrb0, tOrb1); // autour du manoir, vers la gauche
   // Photo d'origine dans le cadre pendant la pose (déjà apparue pendant la fin de la chute du monde ;
