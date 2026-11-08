@@ -648,7 +648,14 @@ function prechargerSuivant() {
 let loadingScene = false;
 
 function makeSplat(url, startGrow = 1) {
-  const mesh = new SplatMesh({ url });
+  const chargement = { progres: 0 }; // part du fichier reçue, de 0 à 1 (barre de chargement)
+  const mesh = new SplatMesh({
+    url,
+    onProgress: (e) => {
+      chargement.progres = e.total ? Math.min(1, e.loaded / e.total) : 1;
+    },
+  });
+  mesh.userData.chargement = chargement;
   mesh.quaternion.set(1, 0, 0, 0); // retourne la scène ; à retirer si elle apparaît à l'envers
   mesh.userData.grow = dyno.dynoFloat(startGrow); // avancement de la transition (0 à 1)
   mesh.userData.fall = dyno.dynoFloat(0);         // 1 pendant l'apparition (chute), 0 sinon
@@ -1401,6 +1408,7 @@ async function chargerMonde(index, essais) {
     next = creerMonde(monde);
   }
   precharge = null;
+  mondeEnChargement = next;
   try {
     await next.initialized;
   } catch (e) {
@@ -1673,6 +1681,26 @@ const flashDiv = document.createElement("div");
 flashDiv.style.cssText = "position:fixed; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:5;";
 document.body.appendChild(flashDiv);
 let flashBlanc = 0;   // piloté par la séquence
+
+// Barre de chargement, pendant le noir entre deux mondes. Elle suit la réception du fichier ;
+// une fois pleine, elle pulse pendant la décompression, dont Spark ne donne pas l'avancement.
+const barre = document.createElement("div");
+barre.style.cssText = "position:fixed; left:50%; top:calc(50% + 48px); width:240px; height:2px; margin-left:-120px;" +
+  "background:rgba(255,255,255,.2); z-index:6; pointer-events:none; display:none;";
+const barreRemplie = document.createElement("div");
+barreRemplie.style.cssText = "height:100%; width:0; background:#fff;";
+barre.appendChild(barreRemplie);
+document.body.appendChild(barre);
+let mondeEnChargement = null;
+
+function updateBarre() {
+  const monde = transition && transition.phase === "noir" ? mondeEnChargement : null;
+  barre.style.display = monde ? "block" : "none";
+  if (!monde) return;
+  const p = monde.userData.chargement?.progres ?? 0;
+  barreRemplie.style.width = `${p * 100}%`;
+  barreRemplie.style.opacity = p < 1 ? 1 : 0.6 + 0.4 * Math.sin(performance.now() / 150);
+}
 
 function chargerPhoto(monde) {
   if (!monde.cadrage?.photo) return null;
@@ -2141,6 +2169,7 @@ function afficherImage(now) {
   updateCadre();
   updatePhoto();
   updateFiche(dt);
+  updateBarre();
   updateTransition(dt);
   updateGalleryTrigger();
   updateSceneTrigger();
