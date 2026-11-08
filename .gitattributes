@@ -1,0 +1,3 @@
+# Les lanceurs doivent garder les fins de ligne de leur système
+*.command text eol=lf
+*.bat text eol=crlf

@@ -21,7 +21,8 @@ const SCENES_DIR = path.resolve(process.cwd(), "public", "scenes");
 // « PROD (licence) » n'existe plus depuis le 8 novembre 2026 : 1945 est séparée entre PROD et NON_COMMERCIAL).
 // Copie autonome (export pour le Mac, voir exporter.py) : les mondes sont dans le dossier « mondes » de l'app,
 // avec la même organisation ; sinon, ceux de 01_PROJETS (PC de recherche).
-const MONDES_LOCAL = path.resolve(process.cwd(), "mondes");
+// Sur le Mac, Lancer.command indique par GW_MONDES le dossier « mondes » du Drive, qui passe alors en premier.
+const MONDES_LOCAL = process.env.GW_MONDES || path.resolve(process.cwd(), "mondes");
 const PROJETS_DIR = fs.existsSync(MONDES_LOCAL)
   ? MONDES_LOCAL
   : path.resolve(process.cwd(), "..", "..", "..", "01_PROJETS");

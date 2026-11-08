@@ -14,17 +14,16 @@ Copie autonome de l'app, avec ses mondes (Marble et splats Postshot) dans le dos
 Le code est sur GitHub, dépôt privé https://github.com/Mimault/gaussian-walk-v2. Les mondes (`.spz`) sont trop lourds pour GitHub : ils restent sur le Drive, dans `Nicolas\APPS\gaussian-walk_V2\mondes`.
 
 1. Récupérer le code une première fois avec GitHub Desktop (File, Clone repository, `Mimault/gaussian-walk-v2`).
-2. Copier le dossier `mondes` du Drive dans le dossier du dépôt (à côté de `package.json`). Git l'ignore.
-3. `npm install` une fois, puis `npm run dev` comme ci-dessous.
-4. Pour une nouvelle version : dans GitHub Desktop, « Fetch origin » puis « Pull origin ». Recopier `mondes` seulement s'il y a de nouveaux mondes.
-
+2. Sur le Mac, installer Google Drive pour ordinateur, ouvrir `Nicolas/APPS/gaussian-walk_V2` dans le Finder et rendre le dossier `mondes` disponible hors connexion (clic droit). L'app lit ce dossier directement et les nouveaux mondes se téléchargent seuls. Sans le Drive, elle lit un dossier `mondes` copié à côté de `package.json`.
+3. Double-cliquer sur `Lancer.command` : il installe les briques de l'app la première fois, puis lance tout.
+4. Pour une nouvelle version : dans GitHub Desktop, « Fetch origin » puis « Pull origin ».
 ## À chaque fois
 
-1. Dans le Terminal, dans le dossier de l'app : `npm run dev`
-2. Ouvrir dans Chrome l'adresse affichée, en général http://localhost:5173
+1. Double-cliquer sur `Lancer.command` (Mac) ou `Lancer.bat` (PC). Le navigateur s'ouvre en pleine définition (`full_res`).
+2. L'adresse est en général http://localhost:5173
    - `http://localhost:5173/?densite=500k` charge les mondes allégés (plus fluide).
 3. Accepter l'accès à la caméra quand Chrome le demande (webcam dans le cadre ; rien n'est enregistré).
-4. Pour arrêter : Ctrl + C dans le Terminal.
+4. Pour arrêter : Ctrl + C dans la fenêtre du lanceur, ou la fermer.
 
 ## Définition maximale
 
