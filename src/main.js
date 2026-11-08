@@ -29,7 +29,14 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 1000);
 camera.position.set(0, 0, 0); // V2 : départ au point de vue du panorama Marble
 
-const spark = new SparkRenderer({ renderer });
+// Spark garde la taille des splats sur 256 valeurs entre deux images : un changement de taille se voit
+// alors par paliers de 8,6 %. L'encodage étendu les rend continus, au prix de plus de mémoire.
+const CLE_TAILLES_PRECISES = "gaussian-walk-v2.taillesPrecises";
+let taillesPrecises = true;
+try {
+  taillesPrecises = localStorage.getItem(CLE_TAILLES_PRECISES) !== "0";
+} catch (e) {}
+const spark = new SparkRenderer({ renderer, accumExtSplats: taillesPrecises });
 scene.add(spark);
 
 // ---------- Compteur d'images par seconde ----------
@@ -156,13 +163,10 @@ const params = {
   seqEnvolAnticipation: 0.1, // part du rapetissement restante quand l'envol (transition) démarre ; 0 = à la fin exacte
   seqRegardCadre: 0.5,     // pendant l'orbite, le regard glisse du manoir (0) vers le cadre 3D (1) ; 0,5 = entre les deux
   seqOrbiteAngle: 315,     // degrés : l'orbite autour du manoir n'est pas un tour complet
-  seqPhotoAvance: 0.25,    // la photo apparaît pendant cette dernière part de la chute du monde (avant que les particules soient en place)
   seqPhoto: true,          // photo d'origine dans le cadre pendant la pose, effacée par un flash blanc
+  seqPhotoAvance: 0.25,    // la photo apparaît pendant cette dernière part de la chute du monde (avant que les particules soient en place)
+  cadreTraceDuree: 1.5,    // s : tracé du cadre pendant la chute du monde ; il se ferme à la fin de la chute
   seqFlashDuree: 0.8,      // s : retombée du flash blanc
-  seqWebcam: true,         // webcam dans le cadre une fois dépassé, jusqu'à la fin du tour sur soi (rien n'est enregistré)
-  seqCadreFondu: 1.5,      // durée (s) de la disparition du cadre et de la webcam, à la fin du tour sur soi
-  webcamSaturation: 0.3,   // couleurs de la webcam (0 = noir et blanc, 1 = d'origine), pour s'accorder aux mondes
-  webcamContraste: 0.8,    // contraste de la webcam (1 = d'origine, moins = plus terne)
   ficheVisible: true,      // fiche MuIS tapée en haut à gauche
   ficheVitesse: 45,        // caractères par seconde
   seqOrbiteDuree: 21.5,    // s : durée de l'orbite autour du manoir
@@ -772,12 +776,9 @@ fSeq.add(params, "seqOrbiteDuree", 1, 120, 0.5).name("Orbite : durée (s)");
 fSeq.add(params, "seqOrbiteAngle", 0, 360, 5).name("Orbite : angle (°)");
 fSeq.add(params, "seqRegardCadre", 0, 1, 0.05).name("Orbite : regard vers le cadre");
 fSeq.add(params, "seqPhoto").name("Photo d'origine (pose)");
-fSeq.add(params, "seqPhotoAvance", 0, 1, 0.05).name("Photo : apparition (fin de chute)");
 fSeq.add(params, "seqFlashDuree", 0, 3, 0.05).name("Flash blanc : durée (s)");
-fSeq.add(params, "seqWebcam").name("Webcam dans le cadre");
-fSeq.add(params, "webcamSaturation", 0, 1, 0.05).name("Webcam : saturation");
-fSeq.add(params, "webcamContraste", 0.3, 1.2, 0.05).name("Webcam : contraste");
-fSeq.add(params, "seqCadreFondu", 0.1, 5, 0.1).name("Disparition du cadre (s)");
+fSeq.add(params, "seqPhotoAvance", 0, 1, 0.05).name("Photo : apparition (fin de chute)");
+fSeq.add(params, "cadreTraceDuree", 0, 5, 0.1).name("Cadre : durée du tracé (s)");
 fSeq.add(params, "seqEnvolAnticipation", 0, 0.5, 0.01).name("Envol : anticipation (part)");
 fSeq.add(params, "seqPauseFin", 0, 20, 0.5).name("Pause après l'orbite (s)");
 fSeq.add(params, "horsCadreTaille", 0, 1, 0.01).name("Taille de base (pose, fin)");
@@ -816,6 +817,15 @@ fPerf.add(params, "resolution", 0.5, 2, 0.05).name("Résolution de rendu").onCha
 fPerf.add(params, "etendue", 1.5, 3, 0.01).name("Étendue des splats").onChange((v) => {
   spark.maxStdDev = v;
 });
+// Un bouton, pas une case : ce choix ne doit pas passer par la sauvegarde du panneau (il recharge la page)
+fPerf.add({
+  basculer() {
+    try {
+      localStorage.setItem(CLE_TAILLES_PRECISES, taillesPrecises ? "0" : "1");
+    } catch (e) {}
+    location.reload();
+  },
+}, "basculer").name(`Tailles précises : ${taillesPrecises ? "oui" : "non"} (cliquer pour changer)`);
 
 // ---------- Sauvegarde des réglages ----------
 // Chaque modification du panneau est enregistrée dans le navigateur et restaurée au rechargement.
@@ -1556,8 +1566,7 @@ function switchToIn() {
   cadrageActuel = to.userData.cadrage || null;
   photoTexMonde?.dispose?.();                  // photo du monde précédent
   photoTexMonde = to.userData.photoTex || null;
-  contenuCadre = "photo";
-  couperWebcam();                              // webcam (flux ou image figée) du monde précédent
+  cadreTrace = params.seqActive ? 0 : 1;       // en séquence, le cadre se trace après la chute
   lancerFiche(to.userData.fiche, to.userData.cadrage?.generation);            // fiche MuIS tapée dans le HUD à l'arrivée du monde
   majCadre();
   if (params.sceneResetCamera && cadrageActuel) {
@@ -1635,15 +1644,30 @@ function majCadre() {
   const y = D * Math.tan(THREE.MathUtils.degToRad(c.v_fov_deg) / 2);
   const pdv = pointDeVue(c);
   const rot = new THREE.Quaternion().setFromEuler(new THREE.Euler(pdv.pitch, pdv.yaw, 0, "YXZ"));
-  // Rectangle fermé : on repasse par le premier coin
-  const pts = [[-x, -y], [x, -y], [x, y], [-x, y], [-x, -y]].map(([px, py]) => new THREE.Vector3(px, py, -D).applyQuaternion(rot));
-  cadre.geometry.dispose();
-  cadre.geometry = new LineGeometry();
-  cadre.geometry.setPositions(pts.flatMap((p) => [p.x, p.y, p.z]));
   // La photo d'origine occupe exactement le cadre
   photoPlan.scale.set(2 * x, 2 * y, 1);
   photoPlan.position.set(0, 0, -D).applyQuaternion(rot);
   photoPlan.quaternion.copy(rot);
+  if (cadreTrace <= 0) return; // rien à dessiner pour l'instant
+  // Rectangle fermé, parcouru depuis le coin haut gauche dans le sens des aiguilles d'une montre
+  const coins = [[-x, y], [x, y], [x, -y], [-x, -y], [-x, y]].map(([px, py]) => new THREE.Vector3(px, py, -D).applyQuaternion(rot));
+  // Seule la part déjà tracée du contour : vitesse constante le long des côtés
+  const pts = [coins[0]];
+  let reste = cadreTrace * 4 * (x + y); // périmètre
+  for (let i = 1; i < coins.length; i++) {
+    const cote = i % 2 === 1 ? 2 * x : 2 * y;
+    if (reste >= cote) {
+      pts.push(coins[i]);
+      reste -= cote;
+    } else {
+      if (reste > 0) pts.push(coins[i - 1].clone().lerp(coins[i], reste / cote));
+      break;
+    }
+  }
+  if (pts.length < 2) return;
+  cadre.geometry.dispose();
+  cadre.geometry = new LineGeometry();
+  cadre.geometry.setPositions(pts.flatMap((p) => [p.x, p.y, p.z]));
 }
 
 // ---------- V2 : photo d'origine dans le cadre, et flash blanc ----------
@@ -1655,19 +1679,8 @@ const photoMat = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide,
   toneMapped: false,
 });
-// Webcam plus terne : saturation et contraste réduits (la photo d'origine reste telle quelle)
-const webcamTon = { saturation: { value: 1 }, contraste: { value: 1 } };
-photoMat.onBeforeCompile = (shader) => {
-  shader.uniforms.uSaturation = webcamTon.saturation;
-  shader.uniforms.uContraste = webcamTon.contraste;
-  shader.fragmentShader = shader.fragmentShader
-    .replace("void main() {", "uniform float uSaturation;\nuniform float uContraste;\nvoid main() {")
-    .replace("#include <map_fragment>", `#include <map_fragment>
-      float lum = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-      diffuseColor.rgb = mix(vec3(lum), diffuseColor.rgb, uSaturation);
-      diffuseColor.rgb = mix(vec3(0.5), diffuseColor.rgb, uContraste);`);
-};
-let cadreFondu = 1; // 1 = cadre visible ; descend à 0 à la fin du tour sur soi (séquence)
+let cadreFondu = 1; // 1 = cadre visible ; 0 une fois l'avancée finie (séquence)
+let cadreTrace = 1; // part du contour déjà tracée (de 0 à 1)
 const photoPlan =new THREE.Mesh(new THREE.PlaneGeometry(1, 1), photoMat);
 photoPlan.renderOrder = 9998; // par-dessus les splats, sous le trait du cadre
 photoPlan.frustumCulled = false;
@@ -1688,192 +1701,154 @@ function chargerPhoto(monde) {
 }
 
 let photoTexMonde = null;     // photo d'origine du monde affiché
-let contenuCadre = "photo";   // ce que montre le cadre : "photo", "webcam" (flux) ou "fige" (dernière image)
 
 function updatePhoto() {
   if (!seq) {
     if (transition && transition.phase === "in" && params.seqActive) {
-      // Chute du nouveau monde : la photo apparaît juste avant que les particules soient en place
-      contenuCadre = "photo";
+      // Chute du nouveau monde : la photo apparaît juste avant que les particules soient en place,
+      // et le cadre se trace pendant ce temps ; il se ferme à la fin de la chute
       photoOpacite = fenetre(transition.t, 1 - params.seqPhotoAvance, 1);
+      const D = params.transitionDuree, Dc = params.cadreTraceDuree;
+      cadreTrace = Dc > 0 ? THREE.MathUtils.clamp((transition.t * D - (D - Dc)) / Dc, 0, 1) : 1;
     } else if (transition || !params.seqActive) {
       photoOpacite = 0; // disparition du monde, ou séquence arrêtée
     } // sinon (entre la fin de la chute et le départ de la séquence) : la photo reste
     flashBlanc = 0;
     if (!params.seqActive || (transition && transition.phase === "in")) cadreFondu = 1;
+    if (!params.seqActive) cadreTrace = 1;
   }
-  const estWebcam = contenuCadre !== "photo";
-  webcamTon.saturation.value = estWebcam ? params.webcamSaturation : 1;
-  webcamTon.contraste.value = estWebcam ? params.webcamContraste : 1;
-  const map =contenuCadre === "webcam" ? webcam.tex : contenuCadre === "fige" ? webcam.fige : photoTexMonde;
-  if (photoMat.map !== map) {
-    photoMat.map = map;
+  if (photoMat.map !== photoTexMonde) {
+    photoMat.map = photoTexMonde;
     photoMat.needsUpdate = true;
   }
   photoMat.opacity = photoOpacite * cadreFondu;
-  const permis = contenuCadre === "photo" ? params.seqPhoto : params.seqWebcam;
-  photoPlan.visible = permis && photoOpacite * cadreFondu > 0 && !!map;
+  photoPlan.visible = params.seqPhoto && photoMat.opacity > 0 && !!photoTexMonde;
   flashDiv.style.opacity = params.seqPhoto ? flashBlanc : 0;
 }
 
-// ---------- V2 : webcam dans le cadre ----------
-// Allumée pendant la séquence, montrée dans le cadre quand la caméra l'a dépassé et se retourne,
-// puis figée à la fin du tour sur soi : on garde la dernière image, le flux vidéo est coupé.
-// Rien n'est enregistré. Vue de derrière, l'image est en miroir, comme un reflet.
-const webcam = { demande: false, jeton: 0, stream: null, video: null, tex: null, fige: null, pret: false };
-
-function formatCadre() {
-  if (!cadrageActuel) return 4 / 3;
-  return Math.tan(THREE.MathUtils.degToRad(cadrageActuel.h_fov_deg) / 2) /
-         Math.tan(THREE.MathUtils.degToRad(cadrageActuel.v_fov_deg) / 2);
-}
-
-// Recadrage « couvrant » : l'image remplit le cadre sans déformation (les bords en trop sont coupés)
-function recadrage(vw, vh) {
-  const fc = formatCadre(), fv = vw / vh;
-  return fv > fc
-    ? { sx: (vw - vh * fc) / 2, sy: 0, sw: vh * fc, sh: vh, rx: fc / fv, ry: 1 }
-    : { sx: 0, sy: (vh - vw / fc) / 2, sw: vw, sh: vw / fc, rx: 1, ry: fv / fc };
-}
-
-async function demarrerWebcam() {
-  webcam.demande = true;
-  const jeton = ++webcam.jeton;
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: false });
-    if (jeton !== webcam.jeton || !webcam.demande) {
-      stream.getTracks().forEach((tr) => tr.stop()); // annulée entre-temps (monde suivant, séquence arrêtée)
-      return;
-    }
-    const video = document.createElement("video");
-    video.muted = true;
-    video.playsInline = true;
-    video.srcObject = stream;
-    await video.play();
-    const tex = new THREE.VideoTexture(video);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    const r = recadrage(video.videoWidth, video.videoHeight);
-    tex.repeat.set(r.rx, r.ry);
-    tex.offset.set((1 - r.rx) / 2, (1 - r.ry) / 2);
-    Object.assign(webcam, { stream, video, tex, pret: true });
-  } catch (e) {
-    console.warn("Webcam indisponible :", e);
-    showToast("Webcam indisponible");
-  }
-}
-
-function arreterFlux() {
-  webcam.stream?.getTracks().forEach((tr) => tr.stop());
-  webcam.tex?.dispose();
-  Object.assign(webcam, { stream: null, video: null, tex: null });
-}
-
-function figerWebcam() {
-  const v = webcam.video;
-  if (v && v.videoWidth) {
-    const r = recadrage(v.videoWidth, v.videoHeight);
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(r.sw);
-    canvas.height = Math.round(r.sh);
-    canvas.getContext("2d").drawImage(v, r.sx, r.sy, r.sw, r.sh, 0, 0, canvas.width, canvas.height);
-    webcam.fige = new THREE.CanvasTexture(canvas);
-    webcam.fige.colorSpace = THREE.SRGBColorSpace;
-  }
-  arreterFlux(); // plus besoin du flux vidéo
-}
-
-function couperWebcam() {
-  webcam.demande = false;
-  webcam.jeton++;
-  webcam.pret = false;
-  arreterFlux();
-  webcam.fige?.dispose();
-  webcam.fige = null;
-}
-
 // ---------- V2 : fiche MuIS, tapée façon terminal en haut à gauche ----------
-// Mêmes éléments que la fiche « At a glance » de MyMuiZ (03_OUTILS\prod\fiche_muis.py) ;
-// elle se tape à l'arrivée du monde et reste jusqu'à sa disparition.
+// Mêmes éléments que la fiche « At a glance » de MyMuiZ (03_OUTILS\prod\fiche_muis.py), en estonien puis en
+// anglais (en italique), sous la forme Maailm/World. Le contenu technique (modèles, outils) n'est pas traduit.
+// Elle se tape à l'arrivée du monde et reste jusqu'à sa disparition.
 const ficheDiv = document.createElement("div");
 ficheDiv.style.cssText =
   "position:fixed; top:16px; left:16px; z-index:6; pointer-events:none; white-space:pre;" +
   "font:13px/1.55 ui-monospace, Consolas, 'Courier New', monospace; color:#e6e6e6;" +
   "text-shadow:0 0 4px rgba(0,0,0,.9), 0 0 1px rgba(0,0,0,1);";
 document.body.appendChild(ficheDiv);
-let ficheTexte = "";
-let ficheN = 0;      // nombre de caractères déjà tapés
-let ficheTemps = 0;
+let ficheMorceaux = []; // { t: texte, el: <span> }
+let ficheN = 0;         // nombre de caractères déjà tapés
+let ficheAffiche = -1;  // dernier nombre de caractères écrit dans la page
+
+const LARGEUR_LIBELLE = "> Treenimine/Training  ".length;
+const texteDroit = (t) => ({ t, italique: false });
+const texteItalique = (t) => ({ t, italique: true });
+
+function ligneFiche(et, en, ...valeur) {
+  const debut = en ? `> ${et}/` : `> ${et}`;
+  const blanc = " ".repeat(Math.max(1, LARGEUR_LIBELLE - debut.length - (en ? en.length : 0)));
+  return [texteDroit(debut), texteItalique(en || ""), texteDroit(blanc), ...valeur];
+}
+
+function suiteFiche(morceau) {
+  return [texteDroit(" ".repeat(LARGEUR_LIBELLE)), morceau];
+}
+
+const FIABILITE_ET = { sure: "kindel", probable: "tõenäoline", uncertain: "ebakindel" };
+
+const dateAnglais = (d) => d.replace(/umbes /g, "c. ");
+const lieuAnglais = (l) => l.replace("Eesti", "Estonia").replace("Tartumaa", "Tartu County").replace(/ loss\b/, " manor house");
 
 // Ce qui a produit le monde (cadrage.generation, écrit par 03_OUTILS/prod/cadrage.py) :
 // le panorama vient du workflow ComfyUI de Nico, le monde 3D de Marble
-function texteGeneration(g) {
+function lignesGeneration(g) {
   if (!g) return [];
   const p = g.panorama || {}, m = g.monde || {};
-  const lignes = [""];
+  const lignes = [];
   if (p.workflow) {
-    lignes.push(`> Pano     ComfyUI · ${p.workflow}${p.version ? ` (${p.version})` : ""}`);
-    for (const mod of p.modeles || []) lignes.push(`           ${mod}`);
+    lignes.push(ligneFiche("Panoraam", "Pano", texteDroit(`ComfyUI · ${p.workflow}${p.version ? ` (${p.version})` : ""}`)));
+    for (const mod of p.modeles || []) lignes.push(suiteFiche(texteDroit(mod)));
   }
   if (g.dataset?.workflow) {
-    lignes.push(`> Dataset  ${g.dataset.outil} · ${g.dataset.workflow}`);
-    for (const mod of g.dataset.modeles || []) lignes.push(`           ${mod}`);
+    lignes.push(ligneFiche("Andmestik", "Dataset", texteDroit(`${g.dataset.outil} · ${g.dataset.workflow}`)));
+    for (const mod of g.dataset.modeles || []) lignes.push(suiteFiche(texteDroit(mod)));
   }
   if (g.entrainement) {
     const e = g.entrainement;
-    lignes.push(`> Training ${e.outil} · ${e.modele} · ${Math.round(e.etapes / 1000)}k steps · ${(e.splats / 1e6).toFixed(2)}M splats`);
+    lignes.push(ligneFiche("Treenimine", "Training", texteDroit(`${e.outil} · ${e.modele} · ${Math.round(e.etapes / 1000)}k steps · ${(e.splats / 1e6).toFixed(2)}M splats`)));
   }
-  if (m.outil) lignes.push(`> World    ${m.outil}${m.modele ? ` · ${m.modele}` : ""}${m.variante ? ` ${m.variante}` : ""}`);
-  return lignes.length > 1 ? lignes : [];
+  if (m.outil) lignes.push(ligneFiche("Maailm", "World", texteDroit(`${m.outil}${m.modele ? ` · ${m.modele}` : ""}${m.variante ? ` ${m.variante}` : ""}`)));
+  return lignes;
 }
 
-function texteFiche(f, g) {
-  if (!f && !g) return "";
-  const lignes = [];
-  if (f) {
-    const date = f.date
-      ? f.date + (f.date_conf ? `  [${f.date_conf}]` : "")
-      : `undated  · CONTRECHAMP: ${f.date_projet || "?"}`;
-    lignes.push(
-      `> Fk ID    ${f.inv}`,
-      `> Title    ${f.titre_et}`,
-      f.titre_en ? `           ${f.titre_en}` : null,
-      `> Date     ${date}`,
-      f.auteur ? `> Author   ${f.auteur}` : null,
-      f.lieu ? `> Place    ${f.lieu}` : null,
-    );
+function lignesFiche(f) {
+  if (!f) return [];
+  const lignes = [ligneFiche("Fk ID", "", texteDroit(f.inv))];
+  lignes.push(ligneFiche("Nimetus", "Title", texteDroit(f.titre_et)));
+  if (f.titre_en) lignes.push(suiteFiche(texteItalique(f.titre_en)));
+  if (f.date) {
+    const fiabilite = FIABILITE_ET[f.date_conf]
+      ? [texteDroit(`  [${FIABILITE_ET[f.date_conf]}/`), texteItalique(f.date_conf), texteDroit("]")]
+      : [];
+    lignes.push(ligneFiche("Kuupäev", "Date", texteDroit(f.date), ...fiabilite));
+    if (dateAnglais(f.date) !== f.date) lignes.push(suiteFiche(texteItalique(dateAnglais(f.date))));
+  } else {
+    lignes.push(ligneFiche("Kuupäev", "Date", texteDroit("dateerimata/"), texteItalique("undated"),
+      texteDroit(`  · CONTRECHAMP: ${f.date_projet || "?"}`)));
   }
-  lignes.push(...texteGeneration(g));
-  return lignes.filter((l) => l !== null).join("\n").replace(/^\n/, "");
+  if (f.auteur) lignes.push(ligneFiche("Autor", "Author", texteDroit(f.auteur)));
+  if (f.lieu) {
+    lignes.push(ligneFiche("Koht", "Place", texteDroit(f.lieu)));
+    if (lieuAnglais(f.lieu) !== f.lieu) lignes.push(suiteFiche(texteItalique(lieuAnglais(f.lieu))));
+  }
+  return lignes;
 }
 
 function lancerFiche(f, g) {
-  ficheTexte = texteFiche(f, g);
+  const haut = lignesFiche(f), bas = lignesGeneration(g);
+  const lignes = haut.length && bas.length ? [...haut, [], ...bas] : [...haut, ...bas];
+  // Une seule suite de morceaux, chacun dans son <span>, avec les retours à la ligne entre les lignes
+  const suite = lignes.flatMap((l, i) => (i ? [texteDroit("\n"), ...l] : l)).filter((m) => m.t);
+  ficheMorceaux = suite.map((m) => {
+    const el = document.createElement("span");
+    if (m.italique) el.style.fontStyle = "italic";
+    return { t: m.t, el };
+  });
+  ficheDiv.replaceChildren(...ficheMorceaux.map((m) => m.el));
   ficheN = 0;
+  ficheAffiche = -1;
 }
 
 function effacerFiche() {
-  ficheTexte = "";
+  ficheMorceaux = [];
+  ficheDiv.replaceChildren();
   ficheN = 0;
+  ficheAffiche = -1;
 }
 
 function updateFiche(dt) {
-  ficheTemps += dt;
-  if (!params.ficheVisible || !ficheTexte) {
-    ficheDiv.textContent = "";
-    return;
+  ficheDiv.style.display = params.ficheVisible ? "block" : "none";
+  ficheN += dt * params.ficheVitesse;
+  const n = Math.floor(ficheN);
+  if (n === ficheAffiche || !ficheMorceaux.length) return;
+  ficheAffiche = n;
+  // Tapée caractère par caractère, sans curseur
+  let reste = n;
+  for (const m of ficheMorceaux) {
+    const part = m.t.slice(0, Math.max(0, reste));
+    if (m.el.textContent !== part) m.el.textContent = part;
+    reste -= m.t.length;
   }
-  ficheN = Math.min(ficheTexte.length, ficheN + dt * params.ficheVitesse);
-  ficheDiv.textContent = ficheTexte.slice(0, Math.floor(ficheN)); // tapée caractère par caractère, sans curseur
 }
 
 let cadreDessine = ""; // réglages utilisés pour le dernier dessin du cadre
 function updateCadre() {
-  const etat = `${params.lacetCorrection}|${params.cadreDistance}`;
+  const etat = `${params.lacetCorrection}|${params.cadreDistance}|${cadreTrace}`;
   if (cadreDessine !== etat) {
     cadreDessine = etat;
     majCadre();
   }
-  cadre.visible = params.cadreVisible && !!cadrageActuel && cadreFondu > 0;
+  cadre.visible = params.cadreVisible && !!cadrageActuel && cadreFondu > 0 && cadreTrace > 0;
   cadreMat.opacity = params.cadreOpacite * cadreFondu;
   cadreMat.linewidth = params.cadreEpaisseur;
 }
@@ -1974,7 +1949,6 @@ function arreterSequence(message) {
   horsCadreActuel = 1;
   tailleGlobaleActuelle = 1;
   params.seqActive = false;
-  couperWebcam();
   if (message) showToast(message);
 }
 
@@ -2034,22 +2008,11 @@ function updateSequence(dt) {
   const recul = (params.seqReculPct / 100) * fenetre(t, tRec0, tRec1);
   const orbite = -THREE.MathUtils.degToRad(params.seqOrbiteAngle) * fenetre(t, tOrb0, tOrb1); // autour du manoir, vers la gauche
   // Photo d'origine dans le cadre pendant la pose (déjà apparue pendant la fin de la chute du monde ;
-  // sinon, apparition en 0,5 s), puis flash blanc qui l'efface
-  // Webcam : allumée après la pose (le temps qu'elle démarre), visible dans le cadre une fois la caméra
-  // passée de l'autre côté (fin de l'avancée). À la fin du tour sur soi, le cadre et la webcam disparaissent
-  // en fondu, puis le flux est coupé (rien n'est enregistré)
-  cadreFondu = 1 - fenetre(t, tTour1 - params.seqCadreFondu, tTour1);
-  if (t < P) {
-    contenuCadre = "photo";
-    photoOpacite = Math.max(photoOpacite, fenetre(t, 0, 0.5));
-  } else if (params.seqWebcam && webcam.pret && t >= tAv1 && t < tTour1) {
-    contenuCadre = "webcam";
-    photoOpacite = fenetre(t, tAv1, tAv1 + 0.5);
-  } else {
-    if (t >= tTour1 && webcam.stream) arreterFlux(); // cadre disparu : plus besoin du flux
-    photoOpacite = 0;
-  }
-  if (params.seqWebcam && t >= P && t < tTour1 && !webcam.demande) demarrerWebcam();
+  // sinon, apparition en 0,5 s), puis un flash blanc l'efface.
+  // À la fin de l'avancée, le cadre, déjà derrière la caméra, disparaît.
+  cadreTrace = 1;
+  cadreFondu = t < tAv1 ? 1 : 0;
+  photoOpacite = t < P ? Math.max(photoOpacite, fenetre(t, 0, 0.5)) : 0;
   flashBlanc = t < P ? fenetre(t, P - 0.12, P) : 1 - fenetre(t, P, P + params.seqFlashDuree);
   const taille = THREE.MathUtils.lerp(1, params.horsCadreTaille, fenetre(t, tFin, tFinTout));
   if (t >= tOrb0 && !precharge) prechargerSuivant(); // le monde suivant se charge pendant l'orbite
@@ -2170,7 +2133,7 @@ function updateSceneTrigger() {
 const clock = new THREE.Clock();
 
 let derniereImage = 0;
-renderer.setAnimationLoop((now) => {
+function afficherImage(now) {
   // V2 : limite d'images par seconde (Performance) ; on saute les images en trop
   const fps = Number(params.fpsMax);
   if (fps > 0 && now - derniereImage < 1000 / fps - 2) return; // 2 ms de tolérance sur le rythme de l'écran
@@ -2204,6 +2167,27 @@ renderer.setAnimationLoop((now) => {
     takePhoto();
   }
   stats.update();
+}
+
+// Une erreur dans une image arrêterait la boucle pour de bon : on la signale une fois et on continue.
+let erreurSignalee = false;
+renderer.setAnimationLoop((now) => {
+  try {
+    afficherImage(now);
+  } catch (e) {
+    flashDiv.style.opacity = 0;
+    if (!erreurSignalee) {
+      erreurSignalee = true;
+      console.error("Erreur dans la boucle d'affichage :", e);
+      showToast("Erreur d'affichage : voir la console");
+    }
+  }
+});
+
+// La carte graphique peut abandonner la page (mémoire saturée, par exemple) : on le dit au lieu d'un écran vide.
+renderer.domElement.addEventListener("webglcontextlost", () => {
+  console.error("Contexte WebGL perdu à", new Date().toLocaleTimeString());
+  showToast("Carte graphique perdue : recharger la page");
 });
 
 // ---------- Redimensionnement de la fenêtre ----------

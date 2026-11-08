@@ -17,13 +17,13 @@ Le code est sur GitHub, dépôt privé https://github.com/Mimault/gaussian-walk-
 2. Sur le Mac, installer Google Drive pour ordinateur, ouvrir `Nicolas/APPS/gaussian-walk_V2` dans le Finder et rendre le dossier `mondes` disponible hors connexion (clic droit). L'app lit ce dossier directement et les nouveaux mondes se téléchargent seuls. Sans le Drive, elle lit un dossier `mondes` copié à côté de `package.json`.
 3. Double-cliquer sur `Lancer.command` : il installe les briques de l'app la première fois, puis lance tout.
 4. Pour une nouvelle version : dans GitHub Desktop, « Fetch origin » puis « Pull origin ».
+
 ## À chaque fois
 
 1. Double-cliquer sur `Lancer.command` (Mac) ou `Lancer.bat` (PC). Le navigateur s'ouvre en pleine définition (`full_res`).
 2. L'adresse est en général http://localhost:5173
    - `http://localhost:5173/?densite=500k` charge les mondes allégés (plus fluide).
-3. Accepter l'accès à la caméra quand Chrome le demande (webcam dans le cadre ; rien n'est enregistré).
-4. Pour arrêter : Ctrl + C dans la fenêtre du lanceur, ou la fermer.
+3. Pour arrêter : Ctrl + C dans la fenêtre du lanceur, ou la fermer.
 
 ## Définition maximale
 
@@ -31,6 +31,7 @@ Le code est sur GitHub, dépôt privé https://github.com/Mimault/gaussian-walk-
 2. Dans le panneau à droite, dossier « Performance » :
    - « Résolution de rendu » à **2** (Retina complet ; la valeur par défaut est 0,5). Si ça saccade, descendre à 1.
    - « Étendue des splats » à **2,83** (valeur d'origine de Spark ; 2 par défaut ici pour aller plus vite).
+   - « Tailles précises » : oui par défaut, pour que les splats grandissent sans à-coups. Si l'app manque de mémoire, cliquer pour passer à non.
 3. Ces réglages restent enregistrés dans le navigateur. « Réglages », puis « Réinitialiser » les annule.
 
 ## Commandes utiles
@@ -44,4 +45,4 @@ Le code est sur GitHub, dépôt privé https://github.com/Mimault/gaussian-walk-
 
 - « Could not read package.json » : le Terminal n'est pas dans le dossier de l'app.
 - Page blanche : le serveur ne tourne pas ; relancer `npm run dev`.
-- « Webcam indisponible » : autoriser la caméra pour Chrome dans Réglages Système, Confidentialité et sécurité, Caméra.
+- « Carte graphique perdue » : la mémoire de la carte graphique est saturée ; recharger la page, baisser la résolution de rendu ou ouvrir `?densite=500k`.
