@@ -636,6 +636,15 @@ function creerMonde(monde) {
   return mesh;
 }
 
+// Lit et décompresse le monde suivant en arrière-plan, pendant l'orbite, sans l'afficher : il n'occupe pas encore
+// la carte graphique. Le reste (libérer l'ancien monde, envoi à la carte) se fait dans le noir.
+let precharge = null; // { index, mesh }
+function prechargerSuivant() {
+  if (precharge || sceneFiles.length < 2) return;
+  const index = (sceneIndex + 1) % sceneFiles.length;
+  precharge = { index, mesh: creerMonde(sceneFiles[index]) };
+}
+
 let loadingScene = false;
 
 function makeSplat(url, startGrow = 1) {
@@ -1366,8 +1375,8 @@ function resetCamera() {
   trailPoints.length = 0; // efface le sillage de la scène précédente
 }
 
-// Changement de monde : l'ancien disparaît, sa mémoire est libérée, et le nouveau se charge pendant le noir.
-// Il n'y a donc jamais deux mondes en mémoire, et un à-coup de chargement ne se voit pas.
+// Changement de monde : l'ancien disparaît, sa mémoire est libérée, et le nouveau est mis en place pendant le noir.
+// Il n'y a donc jamais deux mondes sur la carte graphique, et un à-coup de chargement ne se voit pas.
 function loadScene(index) {
   if (loadingScene || sceneFiles.length === 0) return;
   loadingScene = true;
@@ -1383,7 +1392,15 @@ async function chargerMonde(index, essais) {
   const name = `${monde.photo} ${monde.version} (${densite})`;
   showToast("Chargement… " + name);
 
-  const next = creerMonde(monde);
+  // Si la séquence l'a déjà préparé pendant l'orbite, on le reprend tel quel
+  let next;
+  if (precharge && precharge.index === nextIndex) {
+    next = precharge.mesh;
+  } else {
+    precharge?.mesh.dispose?.(); // préparation d'un autre monde : abandonnée
+    next = creerMonde(monde);
+  }
+  precharge = null;
   try {
     await next.initialized;
   } catch (e) {
@@ -1984,6 +2001,7 @@ function updateSequence(dt) {
   photoOpacite = t < P ? Math.max(photoOpacite, fenetre(t, 0, 0.5)) : 0;
   flashBlanc = t < P ? fenetre(t, P - 0.12, P) : 1 - fenetre(t, P, P + params.seqFlashDuree);
   const taille = THREE.MathUtils.lerp(1, params.horsCadreTaille, fenetre(t, tFin, tFinTout));
+  if (t >= tOrb0 && !precharge) prechargerSuivant(); // le monde suivant se prépare pendant l'orbite
 
   // Position « de base » (avancées et montée), puis recul et orbite autour de la verticale du manoir (C)
   seqPos.copy(seq.dir).multiplyScalar(sAxe).addScaledVector(seq.dirH, sHoriz);
@@ -2011,7 +2029,7 @@ function updateSequence(dt) {
   if (t >= tEnvol) {
     seq = null;           // le monde suivant relancera la séquence à son arrivée
     tailleGlobaleActuelle = params.horsCadreTaille; // les derniers % du rapetissement : d'un coup, invisible
-    loadScene(sceneIndex + 1); // la disparition (envol) part aussitôt ; le monde suivant se charge dans le noir
+    loadScene(sceneIndex + 1); // la disparition (envol) part aussitôt ; le monde suivant se met en place dans le noir
   }
 }
 
