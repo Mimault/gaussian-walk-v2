@@ -615,7 +615,6 @@ const DENSITE = new URLSearchParams(location.search).get("densite") === "500k" ?
 const SCENE_KEY = "gaussian-walk-v2.scene"; // dernier monde vu, restauré au rechargement (distinct de la V1)
 let sceneFiles = [];       // V2 : objets { photo, corpus, version, fichiers: { full_res, 500k } }
 let sceneIndex = 0;
-let precharge = null;      // V2 : monde suivant chargé à l'avance pendant la séquence : { index, mesh }
 let splat = null;          // la scène affichée
 
 function densiteDe(monde) {
@@ -637,12 +636,6 @@ function creerMonde(monde) {
   return mesh;
 }
 
-// Lance le chargement du monde suivant sans l'afficher (il ne s'affiche qu'au changement de scène)
-function prechargerSuivant() {
-  if (precharge || sceneFiles.length < 2) return;
-  const index = (sceneIndex + 1) % sceneFiles.length;
-  precharge = { index, mesh: creerMonde(sceneFiles[index]) };
-}
 let loadingScene = false;
 
 function makeSplat(url, startGrow = 1) {
@@ -1373,9 +1366,16 @@ function resetCamera() {
   trailPoints.length = 0; // efface le sillage de la scène précédente
 }
 
-async function loadScene(index) {
+// Changement de monde : l'ancien disparaît, sa mémoire est libérée, et le nouveau se charge pendant le noir.
+// Il n'y a donc jamais deux mondes en mémoire, et un à-coup de chargement ne se voit pas.
+function loadScene(index) {
   if (loadingScene || sceneFiles.length === 0) return;
   loadingScene = true;
+  if (transition) finishTransition(); // une apparition encore en cours : on la termine
+  startTransition(splat, () => chargerMonde(index, 0));
+}
+
+async function chargerMonde(index, essais) {
   const nextIndex = (index + sceneFiles.length) % sceneFiles.length; // boucle : après la dernière, la première
   const monde = sceneFiles[nextIndex];
   // Densité demandée, ou l'autre si elle manque dans ce dossier
@@ -1383,22 +1383,16 @@ async function loadScene(index) {
   const name = `${monde.photo} ${monde.version} (${densite})`;
   showToast("Chargement… " + name);
 
-  // La nouvelle scène se charge pendant que l'ancienne reste affichée.
-  // V2 : si la séquence l'a déjà préchargée, on la reprend telle quelle.
-  let next;
-  if (precharge && precharge.index === nextIndex) {
-    next = precharge.mesh;
-  } else {
-    precharge?.mesh.dispose?.(); // préchargement d'un autre monde : abandonné
-    next = creerMonde(monde);
-  }
-  precharge = null;
+  const next = creerMonde(monde);
   try {
     await next.initialized;
   } catch (e) {
     console.warn("Chargement impossible :", name, e);
     showToast("Impossible de charger " + name);
     next.dispose?.();
+    // L'ancien monde est déjà parti : on essaie le suivant plutôt que de rester dans le noir
+    if (essais + 1 < sceneFiles.length) return chargerMonde(nextIndex + 1, essais + 1);
+    transition = null;
     loadingScene = false;
     return;
   }
@@ -1407,18 +1401,16 @@ async function loadScene(index) {
   // et ses distances à la caméra (au début de l'apparition), pour l'ordre spatial
   sampleSplats(next);
 
-  // Transition en deux temps (voir updateTransition) :
-  // l'ancienne scène disparaît, la caméra revient au départ, puis la nouvelle tombe du ciel
-  if (transition) finishTransition(); // une transition précédente encore en cours : on la termine
-  startTransition(splat, next);
   sceneIndex = nextIndex;
   params.sceneNom = name;
+  switchToIn(next);
   wasIdle = false; // force un premier calcul des forces sur la nouvelle scène
   showToast(`${sceneIndex + 1} / ${sceneFiles.length} — ${name}`);
   try {
     localStorage.setItem(SCENE_KEY, monde.photo);
   } catch (e) {}
   loadingScene = false;
+  if (params.transitionDuree <= 0) finishTransition(); // durée 0 : changement sec
 }
 
 // ---------- Échantillon de gaussiennes (pour l'ordre spatial de la transition) ----------
@@ -1470,7 +1462,7 @@ function setOrderOrigin(mesh, origin) {
 
 // ---------- Transition entre scènes ----------
 // 1. « out » : l'ancienne scène se dissout (ses gaussiennes rapetissent, dans un ordre aléatoire)
-// 2. entre les deux, plus rien n'est visible : on retire l'ancienne et la caméra revient au départ
+// 2. « noir » : plus rien n'est visible ; l'ancienne est retirée de la mémoire et la nouvelle se charge
 // 3. « in » : les gaussiennes de la nouvelle scène tombent du ciel, dans un ordre aléatoire
 let transition = null; // { phase, from, to, t } pendant une transition, sinon null
 
@@ -1502,8 +1494,8 @@ function setCameraOrientation(pitch, yaw) {
   camera.quaternion.setFromEuler(tiltEuler);
 }
 
-function startTransition(from, to) {
-  transition = { phase: "out", from, to, t: 0 };
+function startTransition(from, charger) {
+  transition = { phase: "out", from, to: null, t: 0, charger };
   // Orientation actuelle : point de départ du mouvement vers le haut
   tiltEuler.setFromQuaternion(camera.quaternion, "YXZ");
   camTilt.yaw = tiltEuler.y;
@@ -1511,16 +1503,24 @@ function startTransition(from, to) {
   camTilt.startPitch = tiltEuler.x;
   if (from) setOrderOrigin(from, camera.position); // ordre de départ mesuré depuis la caméra actuelle
   if (from) effacerFiche(); // la fiche du monde reste jusqu'à sa disparition
-  if (!from || params.transitionDuree <= 0) switchToIn(); // rien à faire disparaître
-  if (params.transitionDuree <= 0) finishTransition();    // durée 0 : changement sec
+  if (!from || params.transitionDuree <= 0) entrerDansLeNoir(); // rien à faire disparaître
 }
 
-function switchToIn() {
-  const { from, to } = transition;
+function entrerDansLeNoir() {
+  const { from, charger } = transition;
   if (from) {
     scene.remove(from);
     from.dispose?.(); // libère la mémoire de l'ancienne scène
   }
+  splat = null;
+  seq = null;
+  transition.phase = "noir";
+  transition.t = 0;
+  charger();
+}
+
+function switchToIn(to) {
+  transition.to = to;
   if (params.sceneResetCamera) {
     resetCamera(); // invisible : plus rien n'est affiché à cet instant
     camTilt.yaw = 0;   // l'orientation de départ devient la cible de l'apparition
@@ -1683,6 +1683,7 @@ function updatePhoto() {
   }
   // Monde suivant demandé : le cadre et la photo s'effacent pendant la première moitié de la disparition
   if (transition && transition.phase === "out") cadreFondu = Math.min(cadreFondu, 1 - fenetre(transition.t, 0, 0.5));
+  if (transition && transition.phase === "noir") cadreFondu = 0;
   // Une séquence interrompue par un changement de monde ne doit pas laisser le flash allumé
   if (transition || loadingScene) flashBlanc = 0;
   if (photoMat.map !== photoTexMonde) {
@@ -1983,7 +1984,6 @@ function updateSequence(dt) {
   photoOpacite = t < P ? Math.max(photoOpacite, fenetre(t, 0, 0.5)) : 0;
   flashBlanc = t < P ? fenetre(t, P - 0.12, P) : 1 - fenetre(t, P, P + params.seqFlashDuree);
   const taille = THREE.MathUtils.lerp(1, params.horsCadreTaille, fenetre(t, tFin, tFinTout));
-  if (t >= tOrb0 && !precharge) prechargerSuivant(); // le monde suivant se charge pendant l'orbite
 
   // Position « de base » (avancées et montée), puis recul et orbite autour de la verticale du manoir (C)
   seqPos.copy(seq.dir).multiplyScalar(sAxe).addScaledVector(seq.dirH, sHoriz);
@@ -2011,7 +2011,7 @@ function updateSequence(dt) {
   if (t >= tEnvol) {
     seq = null;           // le monde suivant relancera la séquence à son arrivée
     tailleGlobaleActuelle = params.horsCadreTaille; // les derniers % du rapetissement : d'un coup, invisible
-    loadScene(sceneIndex + 1); // déjà préchargé : la disparition (envol) part aussitôt
+    loadScene(sceneIndex + 1); // la disparition (envol) part aussitôt ; le monde suivant se charge dans le noir
   }
 }
 
@@ -2022,7 +2022,6 @@ document.addEventListener("mousemove", (e) => {
 });
 
 function finishTransition() {
-  if (transition.phase === "out") switchToIn();
   if (params.cameraInclinaison > 0) setCameraOrientation(camTilt.pitch, camTilt.yaw); // fin du mouvement
   const { to } = transition;
   to.userData.grow.value = 1;
@@ -2032,8 +2031,9 @@ function finishTransition() {
 }
 
 function updateTransition(dt) {
-  if (!transition) return;
-  transition.t = Math.min(1, transition.t + dt / params.transitionDuree);
+  if (!transition || transition.phase === "noir") return; // le chargement relancera la suite
+  // Durée d'image plafonnée : l'à-coup de la première image d'un monde ne doit pas sauter une partie de la chute
+  transition.t = Math.min(1, transition.t + Math.min(dt, 0.25) / params.transitionDuree);
   const tilt = THREE.MathUtils.degToRad(params.cameraInclinaison);
   // Sortie : la caméra attend « Retard de la caméra » avant de suivre les particules,
   //          et son mouvement se termine avec la phase.
@@ -2053,7 +2053,7 @@ function updateTransition(dt) {
       const target = Math.min(camTilt.startPitch + tilt, MAX_PITCH);
       setCameraOrientation(camTilt.startPitch + (target - camTilt.startPitch) * e, camTilt.yaw);
     }
-    if (transition.t >= 1) switchToIn();
+    if (transition.t >= 1) entrerDansLeNoir();
   } else {
     transition.to.userData.grow.value = transition.t;       // la nouvelle tombe du ciel
     transition.to.updateVersion();

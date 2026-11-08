@@ -16,6 +16,23 @@ import path from "node:path";
 const CAPTURES_DIR = path.resolve(process.cwd(), "captures");
 const SCENES_DIR = path.resolve(process.cwd(), "public", "scenes");
 
+// Envoie un fichier au navigateur. Sans ce garde-fou, une erreur de lecture (fichier du Drive indisponible,
+// par exemple) arrêterait tout le serveur.
+function envoyerFichier(chemin, res) {
+  const flux = fs.createReadStream(chemin);
+  flux.on("error", (e) => {
+    console.error("Lecture impossible :", chemin, e.message);
+    if (res.headersSent) {
+      res.destroy();
+    } else {
+      res.statusCode = 500;
+      res.end();
+    }
+  });
+  res.on("close", () => flux.destroy());
+  flux.pipe(res);
+}
+
 // ---------- Mondes Marble (V2) ----------
 // Dossiers lus : <corpus>\PROD\<année>_<photo>\03_marble\Vn\ (photos libres seulement ;
 // « PROD (licence) » n'existe plus depuis le 8 novembre 2026 : 1945 est séparée entre PROD et NON_COMMERCIAL).
@@ -241,7 +258,7 @@ function capturesPlugin() {
           return;
         }
         res.setHeader("Content-Type", /\.png$/i.test(chemin) ? "image/png" : "image/jpeg");
-        fs.createReadStream(chemin).pipe(res);
+        envoyerFichier(chemin, res);
       });
 
       // V2 : un fichier .spz, cherché par son nom dans la liste des mondes (jamais un chemin libre)
@@ -258,7 +275,7 @@ function capturesPlugin() {
         }
         res.setHeader("Content-Type", "application/octet-stream");
         res.setHeader("Content-Length", fs.statSync(chemin).size);
-        fs.createReadStream(chemin).pipe(res);
+        envoyerFichier(chemin, res);
       });
 
       // Une photo, pour l'afficher
@@ -272,16 +289,31 @@ function capturesPlugin() {
           return;
         }
         res.setHeader("Content-Type", /\.png$/i.test(name) ? "image/png" : "image/jpeg");
-        fs.createReadStream(file).pipe(res);
+        envoyerFichier(file, res);
       });
     },
   };
 }
 
+// Vite ajoute à la page un petit programme relié au serveur. Quand ce lien se coupait (« server connection lost »),
+// il rechargeait toute la page : écran blanc en pleine séquence. On le retire ; après une modification du code,
+// il faut donc recharger la page à la main.
+function sansRechargement() {
+  return {
+    name: "sans-rechargement",
+    apply: "serve",
+    transformIndexHtml: {
+      order: "post",
+      handler: (html) => html.replace(/\s*<script[^>]*\/@vite\/client[^>]*><\/script>/, ""),
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [capturesPlugin()],
+  plugins: [capturesPlugin(), sansRechargement()],
   server: {
     // Ne pas recharger la page quand une nouvelle photo arrive dans le dossier
-    watch: { ignored: ["**/captures/**"] },
+    watch: { ignored: ["**/captures/**", "**/mondes/**"] },
+    ws: false, // voir sansRechargement
   },
 });
