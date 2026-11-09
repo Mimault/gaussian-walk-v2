@@ -92,7 +92,7 @@ const params = {
 
   // Répulsion : les splats proches glissent vers les bords de l'écran, la caméra passe au milieu
   repForce: 1.0,       // 0 = aucune ; 1 = écart maximal (égal au rayon tout près de la caméra)
-  repRayon: 1.5,       // taille de la zone : Rayon sur les côtés et derrière, Rayon × Rayon devant
+  repRayon: 1.8,       // taille de la zone : Rayon sur les côtés et derrière, Rayon × Rayon devant
   repBordBruite: 0.3,  // 0 = bord lisse ; 0.3 = le rayon varie de ±30 % selon le bruit
   repSuivreCurl: true, // le bord utilise la fréquence, les octaves et le défilement du curl noise
   repBruitFrequence: 1.5, // réglages propres du bord (quand il ne suit pas le curl noise)
@@ -101,9 +101,9 @@ const params = {
   repBruitDedans: 0.0,    // part du curl noise qui agit aussi dans la zone de répulsion (0 à 1)
 
   // Curl noise : autour de la zone de répulsion (mêmes réglages qu'avant)
-  bruitEpaisseur: 1.5, // épaisseur de la couronne de bruit, au-delà de la zone de répulsion
-  douceur: 0.6,        // 0 = bord extérieur net, 1 = effet estompé jusqu'au bord
-  curlForce: 0.06,      // amplitude du déplacement
+  bruitEpaisseur: 1.7, // épaisseur de la couronne de bruit, au-delà de la zone de répulsion
+  douceur: 0.74,       // 0 = bord extérieur net, 1 = effet estompé jusqu'au bord
+  curlForce: 0.23,      // amplitude du déplacement
   curlFrequence: 1.5,  // taille des tourbillons (grand = fins)
   curlOctaves: 2,      // couches de détail superposées (1 = lisse, 4 = très détaillé)
   panX: 0.0,           // défilement du champ de bruit dans le temps
@@ -158,11 +158,11 @@ const params = {
   seqTourMontee: 1.5,        // m : hauteur gagnée pendant ce tour (il commence à monter)
   seqTourDist: 4,          // m : il continue d'avancer pendant ce tour (à l'horizontale)
   seqReculDuree: 15,       // s : prend de la distance avec le manoir, en montant toujours
-  seqReculPct: 25,         // % : recul, en part de la distance (horizontale) au manoir
-  seqMonteeHaut: 20,       // m : hauteur finale (recul, orbite)
+  seqReculPct: 95,         // % : recul, en part de la distance (horizontale) au manoir
+  seqMonteeHaut: 18,       // m : hauteur finale (recul, orbite)
   seqEnvolAnticipation: 0.1, // part du rapetissement restante quand l'envol (transition) démarre ; 0 = à la fin exacte
   seqRegardCadre: 0.5,     // pendant l'orbite, le regard glisse du manoir (0) vers le cadre 3D (1) ; 0,5 = entre les deux
-  seqOrbiteAngle: 315,     // degrés : l'orbite autour du manoir n'est pas un tour complet
+  seqOrbiteAngle: 340,     // degrés : l'orbite autour du manoir n'est pas un tour complet
   seqPhoto: true,          // photo d'origine dans le cadre pendant la pose, effacée par un flash blanc
   seqPhotoAvance: 0.25,    // la photo apparaît pendant cette dernière part de la chute du monde (avant que les particules soient en place)
   cadreTraceDuree: 1.5,    // s : tracé du cadre pendant la chute du monde ; il se ferme à la fin de la chute
@@ -173,9 +173,9 @@ const params = {
   chapitreFondu: 1.5,      // s : apparition en fondu d'un nouveau chapitre
   chapitreVideDuree: 4,    // s : temps d'affichage, dans le noir, d'un chapitre sans image
   // Ralenti : 0,5 = deux fois plus lent. Chaque case dit si cette partie suit le ralenti.
-  vitesseGlobale: 1,
+  vitesseGlobale: 0.6,
   ralentirCamera: true,        // mouvements de caméra (séquence automatique, commandes, objectif)
-  ralentirForces: false,       // répulsion, curl noise, sillage
+  ralentirForces: true,        // répulsion, curl noise, sillage
   ralentirTransitions: false,  // apparition et disparition des splats
   ralentirTextes: false,       // fiche et chapitre
   seqOrbiteDuree: 21.5,    // s : durée de l'orbite autour du manoir
@@ -203,7 +203,7 @@ const params = {
   apercuTaille: 240,    // largeur de la vignette, en pixels
 
   // Performance
-  resolution: 0.5,           // 1 = un pixel de rendu par point d'écran ; 2 = Retina complet (4× plus de pixels)
+  resolution: 1,           // 1 = un pixel de rendu par point d'écran ; 2 = Retina complet (4× plus de pixels)
   etendue: 2,                // étendue dessinée de chaque gaussienne (défaut Spark : 2.83) ; plus petit = plus rapide, un peu plus « dur »
 };
 
@@ -826,8 +826,8 @@ fPerf.add({
 // Chaque modification du panneau est enregistrée dans le navigateur et restaurée au rechargement.
 // Pour changer de version de réglages sans conflit, il suffit de changer ce nom.
 // V2 : réglages séparés de ceux de la V1. Au premier lancement, valeurs par défaut du code
-// (celles de reglages\reglages_2026-11-07.json).
-const STORAGE_KEY = "gaussian-walk-v2.reglages.v7";
+// (celles de reglages\reglages_2026-11-09.json).
+const STORAGE_KEY = "gaussian-walk-v2.reglages.v8";
 
 function saveSettings() {
   try {
@@ -840,12 +840,12 @@ function saveSettings() {
 function loadSettings() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    // Sans réglages enregistrés, on garde les valeurs par défaut du code (reglages_2026-11-07.json) ;
+    // Sans réglages enregistrés, on garde les valeurs par défaut du code (reglages_2026-11-09.json) ;
     // on ne reprend plus ceux de la V1.
     if (saved) gui.load(JSON.parse(saved)); // applique aussi les effets (résolution, HUD…)
     // Nouvelles valeurs par défaut, appliquées une seule fois par-dessus les réglages enregistrés
     // (Celles du 7 novembre 2026 ont été retirées : les valeurs par défaut du code sont désormais
-    //  celles de reglages\reglages_2026-11-07.json, qui en tiennent compte.)
+    //  celles de reglages\reglages_2026-11-09.json, qui en tiennent compte.)
     const MIGRATIONS = [];
     for (const m of MIGRATIONS) {
       const cle = "gaussian-walk-v2.migration." + m.id;

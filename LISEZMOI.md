@@ -29,7 +29,7 @@ Le code est sur GitHub, dépôt privé https://github.com/Mimault/gaussian-walk-
 
 1. Ouvrir http://localhost:5173 **sans** `?densite=500k` : tous les splats sont chargés (Marble 1,92 M, Postshot jusqu'à 3 M). Le message en bas indique `(full_res)`.
 2. Dans le panneau à droite, dossier « Performance » :
-   - « Résolution de rendu » à **2** (Retina complet ; la valeur par défaut est 0,5). Si ça saccade, descendre à 1.
+   - « Résolution de rendu » à **2** (Retina complet ; la valeur par défaut est 1). Si ça saccade, descendre à 1.
    - « Étendue des splats » à **2,83** (valeur d'origine de Spark ; 2 par défaut ici pour aller plus vite).
    - « Tailles précises » : oui par défaut, pour que les splats grandissent sans à-coups. Si l'app manque de mémoire, cliquer pour passer à non.
 3. Ces réglages restent enregistrés dans le navigateur. « Réglages », puis « Réinitialiser » les annule.

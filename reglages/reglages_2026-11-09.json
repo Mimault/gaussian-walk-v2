@@ -1,0 +1,158 @@
+{
+  "controllers": {},
+  "folders": {
+    "Ralenti": {
+      "controllers": {
+        "Vitesse": 0.6,
+        "Caméra": true,
+        "Forces": true,
+        "Transitions": false,
+        "Textes": false
+      },
+      "folders": {}
+    },
+    "Déclenchement": {
+      "controllers": {
+        "Active": true,
+        "Mode": "Appui = bascule",
+        "Fondu (s)": 0.3
+      },
+      "folders": {}
+    },
+    "Répulsion": {
+      "controllers": {
+        "Force": 1,
+        "Rayon": 1.8
+      },
+      "folders": {
+        "Bruit de la répulsion": {
+          "controllers": {
+            "Bord bruité": 0.3,
+            "Suivre le curl noise": true,
+            "Fréquence du bord": 1.5,
+            "Octaves du bord": 1,
+            "Vitesse du bord": 0.2,
+            "Bruit dans la zone": 0
+          },
+          "folders": {}
+        }
+      }
+    },
+    "Curl noise (autour)": {
+      "controllers": {
+        "Épaisseur de la couronne": 1.7,
+        "Douceur du bord": 0.74,
+        "Force": 0.23,
+        "Fréquence": 1.5,
+        "Octaves": 2,
+        "Défilement X": 0,
+        "Défilement Y": -0.14,
+        "Défilement Z": 0,
+        "Graine": 0,
+        "Durée du sillage (s)": 3,
+        "Espacement du sillage": 0.25
+      },
+      "folders": {}
+    },
+    "Objectif": {
+      "controllers": {
+        "Focale (mm)": 12,
+        "FOV (°)": 72,
+        "Mise au point (m)": 30,
+        "Ouverture (flou)": 0,
+        "Ouverture appliquée": 0,
+        "Seuil de mise au point proche (m)": 1,
+        "Fondu de l'ouverture (s)": 0.5,
+        "Autofocus (centre)": false,
+        "Vitesse autofocus (s)": 0.25
+      },
+      "folders": {}
+    },
+    "HUD": {
+      "controllers": {
+        "Afficher": true,
+        "Fiche MuIS (haut gauche)": true,
+        "Fiche : vitesse de frappe": 45,
+        "Chapitre (haut droite)": true,
+        "Chapitre : fondu (s)": 1.5,
+        "Chapitre sans image (s)": 4,
+        "Opacité": 0.3
+      },
+      "folders": {}
+    },
+    "Scènes": {
+      "controllers": {
+        "Scène": "1990_Fk2411_21_NC V1 (full_res)",
+        "Revenir au départ": true,
+        "Cadre de la photo": true,
+        "Opacité du cadre": 0.6,
+        "Épaisseur du cadre (px)": 5,
+        "Marge autour de la photo": 1.1,
+        "Distance du cadre (m)": 1,
+        "Correction du lacet (°)": 0,
+        "Durée de chaque phase (s)": 2,
+        "Étalement": 0.6,
+        "Hauteur d'envol / de chute": 4,
+        "Regroupement en paquets": 0.7,
+        "Taille des paquets": 1.5,
+        "Ordre par distance": 0.7,
+        "Grandir / rapetisser (part)": 1,
+        "Envol : courbe (1 = immédiat)": 1,
+        "Mouvement caméra (°)": 34,
+        "Retard de la caméra (s)": 0.5
+      },
+      "folders": {}
+    },
+    "Séquence automatique": {
+      "controllers": {
+        "Active (L)": true,
+        "Pose (s)": 2,
+        "Avancée : durée (s)": 5,
+        "Avancée : distance (m)": 1.5,
+        "Avancée : focale d'arrivée (mm)": 12,
+        "Tour sur soi : durée (s)": 25,
+        "Tour sur soi : avancée (m)": 4,
+        "Tour sur soi : montée (m)": 1.5,
+        "Recul : durée (s)": 15,
+        "Recul (% de la distance)": 95,
+        "Hauteur finale (m)": 18,
+        "Orbite : durée (s)": 21.5,
+        "Orbite : angle (°)": 340,
+        "Orbite : regard vers le cadre": 0.5,
+        "Photo d'origine (pose)": true,
+        "Flash blanc : durée (s)": 0.8,
+        "Photo : apparition (fin de chute)": 0.25,
+        "Cadre : durée du tracé (s)": 1.5,
+        "Envol : anticipation (part)": 0.1,
+        "Pause après l'orbite (s)": 0,
+        "Taille de base (pose, fin)": 0.25,
+        "Cible : distance min. (m)": 8
+      },
+      "folders": {}
+    },
+    "Photo": {
+      "controllers": {
+        "Résolution photo": 2,
+        "Format": "PNG",
+        "Flash blanc": true,
+        "Durée du flash (s)": 0.5,
+        "Aperçu en vignette": true,
+        "Durée de l'aperçu (s)": 3,
+        "Taille de l'aperçu (px)": 240
+      },
+      "folders": {}
+    },
+    "Performance": {
+      "controllers": {
+        "Images par seconde (max)": 30,
+        "Résolution de rendu": 1,
+        "Étendue des splats": 2
+      },
+      "folders": {}
+    },
+    "Réglages": {
+      "controllers": {},
+      "folders": {}
+    }
+  }
+}
