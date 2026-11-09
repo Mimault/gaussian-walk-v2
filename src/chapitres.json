@@ -88,6 +88,7 @@
    "fr": "La zone militaire",
    "et": "Sõjaväetsoon",
    "en": "The military zone",
+   "sansImage": true,
    "inv": [
     "ERM Fk 2994:1694",
     "ERM Fk 3074:201",
