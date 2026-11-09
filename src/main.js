@@ -172,6 +172,12 @@ const params = {
   chapitreVisible: true,   // chapitre en haut à droite
   chapitreFondu: 1.5,      // s : apparition en fondu d'un nouveau chapitre
   chapitreVideDuree: 4,    // s : temps d'affichage, dans le noir, d'un chapitre sans image
+  // Ralenti : 0,5 = deux fois plus lent. Chaque case dit si cette partie suit le ralenti.
+  vitesseGlobale: 1,
+  ralentirCamera: true,        // mouvements de caméra (séquence automatique, commandes, objectif)
+  ralentirForces: false,       // répulsion, curl noise, sillage
+  ralentirTransitions: false,  // apparition et disparition des splats
+  ralentirTextes: false,       // fiche et chapitre
   seqOrbiteDuree: 21.5,    // s : durée de l'orbite autour du manoir
   seqPauseFin: 0,          // s : après l'orbite, avant le rapetissement (place prévue pour une autre phase)
   horsCadreTaille: 0.25,   // taille des splats hors du cadre de la photo pendant la pose (1 = normale)
@@ -672,6 +678,12 @@ function makeSplat(url, startGrow = 1) {
 
 // ---------- Panneau de réglages ----------
 const gui = new GUI({ title: "Forces" });
+const fRalenti = gui.addFolder("Ralenti");
+fRalenti.add(params, "vitesseGlobale", 0.05, 2, 0.05).name("Vitesse");
+fRalenti.add(params, "ralentirCamera").name("Caméra");
+fRalenti.add(params, "ralentirForces").name("Forces");
+fRalenti.add(params, "ralentirTransitions").name("Transitions");
+fRalenti.add(params, "ralentirTextes").name("Textes");
 
 const fZone = gui.addFolder("Déclenchement");
 fZone.add(params, "active").name("Active");
@@ -1798,6 +1810,7 @@ chapitreDiv.style.cssText =
 document.body.appendChild(chapitreDiv);
 let chapitreAffiche = null; // numéro du chapitre à l'écran
 let chapitreJeton = 0;      // annule un fondu en attente si le chapitre change encore
+const dureeTexte = (s) => (params.ralentirTextes ? s / params.vitesseGlobale : s); // durée réelle, selon le ralenti des textes
 
 function ecrireChapitre(c) {
   const span = (t, italique) => {
@@ -1823,7 +1836,7 @@ async function annoncerChapitre(monde) {
   if (chapitreAffiche !== null && monde.chapitre && chapitreAffiche < monde.chapitre.n) {
     for (const c of vides) {
       afficherChapitre({ ...c, sansImage: true });
-      await new Promise((fin) => setTimeout(fin, params.chapitreVideDuree * 1000));
+      await new Promise((fin) => setTimeout(fin, dureeTexte(params.chapitreVideDuree) * 1000));
       if (course !== chapitreCourse) return;
     }
   }
@@ -1842,13 +1855,14 @@ function afficherChapitre(c) {
     chapitreDiv.style.transition = "none";
     chapitreDiv.style.opacity = 0;
     void chapitreDiv.offsetWidth; // le navigateur doit voir l'opacité 0 avant de lancer le fondu
-    chapitreDiv.style.transition = `opacity ${params.chapitreFondu}s ease`;
+    chapitreDiv.style.transition = `opacity ${dureeTexte(params.chapitreFondu)}s ease`;
     chapitreDiv.style.opacity = 1;
   };
   if (visible) {
-    chapitreDiv.style.transition = "opacity .4s ease";
+    const effacement = dureeTexte(0.4); // s
+    chapitreDiv.style.transition = `opacity ${effacement}s ease`;
     chapitreDiv.style.opacity = 0;
-    setTimeout(apparaitre, 400);
+    setTimeout(apparaitre, effacement * 1000);
   } else {
     apparaitre();
   }
@@ -2266,34 +2280,41 @@ function updateSceneTrigger() {
 const clock = new THREE.Clock();
 
 let derniereImage = 0;
+let tempsAnimation = 0; // horloge des forces et du sillage : elle suit le ralenti des forces
 function afficherImage(now) {
   // V2 : limite d'images par seconde (Performance) ; on saute les images en trop
   const fps = Number(params.fpsMax);
   if (fps > 0 && now - derniereImage < 1000 / fps - 2) return; // 2 ms de tolérance sur le rythme de l'écran
   derniereImage = now;
-  const dt = clock.getDelta(); // temps écoulé depuis la dernière image rendue
+  const dt = clock.getDelta(); // temps réel écoulé depuis la dernière image rendue
+  // Ralenti : chaque partie reçoit son propre temps, selon sa case dans le panneau
+  const dtCamera = params.ralentirCamera ? dt * params.vitesseGlobale : dt;
+  const dtForces = params.ralentirForces ? dt * params.vitesseGlobale : dt;
+  const dtTransitions = params.ralentirTransitions ? dt * params.vitesseGlobale : dt;
+  const dtTextes = params.ralentirTextes ? dt * params.vitesseGlobale : dt;
+  tempsAnimation += dtForces;
 
   resetInput();
   readKeyboard();
   readGamepad();
   clampInput();
-  applyInput(dt);
-  updateSequence(dt); // V2 : après les commandes, pour reprendre la main ou piloter la caméra
-  updateEffectLevel(dt);
-  updateLens(dt);
+  applyInput(dtCamera);
+  updateSequence(dtCamera); // V2 : après les commandes, pour reprendre la main ou piloter la caméra
+  updateEffectLevel(dtForces);
+  updateLens(dtCamera);
   updatePhotoTrigger();
   updateFlash(dt);
-  updateEffectCenter(dt);
-  updateTrail(clock.elapsedTime);
+  updateEffectCenter(dtForces);
+  updateTrail(tempsAnimation);
   updateCadre();
   updatePhoto();
-  updateFiche(dt);
+  updateFiche(dtTextes);
   updateBarre();
-  updateTransition(dt);
+  updateTransition(dtTransitions);
   updateGalleryTrigger();
   updateSceneTrigger();
 
-  updateForces(clock.elapsedTime);
+  updateForces(tempsAnimation);
 
   renderer.render(scene, camera);
   if (photoRequested) {
