@@ -736,8 +736,8 @@ fHud.add(params, "hudOpacite", 0, 1, 0.01).name("Opacité").onChange((v) => {
 
 const fScenes = gui.addFolder("Scènes");
 fScenes.add(params, "sceneNom").name("Scène").listen().disable();
-fScenes.add({ precedente: () => loadScene(sceneIndex - 1) }, "precedente").name("◀ Précédente");
-fScenes.add({ suivante: () => loadScene(sceneIndex + 1) }, "suivante").name("Suivante ▶");
+fScenes.add({ precedente: () => changerDeMonde(-1) }, "precedente").name("◀ Précédente");
+fScenes.add({ suivante: () => changerDeMonde(1) }, "suivante").name("Suivante ▶");
 fScenes.add(params, "sceneResetCamera").name("Revenir au départ");
 fScenes.add(params, "cadreVisible").name("Cadre de la photo");
 fScenes.add(params, "cadreOpacite", 0, 1, 0.01).name("Opacité du cadre");
@@ -1391,14 +1391,43 @@ function resetCamera() {
 // Changement de monde : l'ancien disparaît, sa mémoire est libérée, et le nouveau est mis en place pendant le noir.
 // Il n'y a donc jamais deux mondes sur la carte graphique, et un à-coup de chargement ne se voit pas.
 function loadScene(index) {
-  if (loadingScene || sceneFiles.length === 0) return;
+  const n = sceneFiles.length;
+  if (n === 0) return;
+  mondeVise = ((index % n) + n) % n; // boucle : après la dernière, la première
+  const charger = () => chargerMonde(mondeVise, 0);
+  if (loadingScene) {
+    // Nouvelle demande pendant un chargement : on saute au monde voulu, sans attendre le précédent
+    if (transition?.phase === "out") {
+      transition.charger = charger;
+      entrerDansLeNoir();
+    } else if (transition?.phase === "noir") {
+      charger();
+    }
+    return;
+  }
   loadingScene = true;
   if (transition) finishTransition(); // une apparition encore en cours : on la termine
-  startTransition(splat, () => chargerMonde(index, 0));
+  startTransition(splat, charger);
+}
+
+// Flèches et boutons : on part du monde déjà demandé, pour pouvoir faire défiler plusieurs mondes d'affilée
+function changerDeMonde(dir) {
+  loadScene((loadingScene ? mondeVise : sceneIndex) + dir);
+}
+
+let mondeVise = 0;     // dernier monde demandé
+let chargementId = 0;  // seul le chargement le plus récent a le droit d'aboutir
+
+// Un chargement abandonné se termine en arrière-plan, puis il est libéré
+function abandonnerMonde(mesh) {
+  mesh.userData.photoTex?.dispose?.();
+  mesh.dispose?.();
 }
 
 async function chargerMonde(index, essais) {
+  const id = ++chargementId;
   const nextIndex = (index + sceneFiles.length) % sceneFiles.length; // boucle : après la dernière, la première
+  mondeVise = nextIndex;
   const monde = sceneFiles[nextIndex];
   const intermede = annoncerChapitre(monde); // on est dans le noir : le nouveau chapitre apparaît ici, en fondu
   // Densité demandée, ou l'autre si elle manque dans ce dossier
@@ -1419,6 +1448,10 @@ async function chargerMonde(index, essais) {
   try {
     await next.initialized;
   } catch (e) {
+    if (id !== chargementId) {
+      abandonnerMonde(next);
+      return;
+    }
     console.warn("Chargement impossible :", name, e);
     showToast("Impossible de charger " + name);
     next.dispose?.();
@@ -1429,8 +1462,16 @@ async function chargerMonde(index, essais) {
     return;
   }
 
+  if (id !== chargementId) { // entre-temps, un autre monde a été demandé
+    abandonnerMonde(next);
+    return;
+  }
   mondeEnChargement = null;  // chargé : la barre s'efface, même si un chapitre sans image reste à l'écran
   await intermede;           // le monde attend la fin de l'annonce d'un chapitre sans image
+  if (id !== chargementId) {
+    abandonnerMonde(next);
+    return;
+  }
 
   // Échantillon de gaussiennes de la nouvelle scène : sert à mesurer sa hauteur (ici)
   // et ses distances à la caméra (au début de l'apparition), pour l'ordre spatial
@@ -2223,7 +2264,7 @@ async function initScenes() {
 let sceneWasPressed = 0;
 function updateSceneTrigger() {
   const dir = Math.sign(input.scene);
-  if (dir !== 0 && sceneWasPressed === 0) loadScene(sceneIndex + dir);
+  if (dir !== 0 && sceneWasPressed === 0) changerDeMonde(dir);
   sceneWasPressed = dir;
 }
 
