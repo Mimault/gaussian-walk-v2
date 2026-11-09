@@ -1877,15 +1877,16 @@ let ficheAffiche = -1;  // dernier nombre de caractères écrit dans la page
 const LARGEUR_LIBELLE = "> Treenimine/Training  ".length;
 const texteDroit = (t) => ({ t, italique: false });
 const texteItalique = (t) => ({ t, italique: true });
+const texteVide = (t) => ({ t, vide: true }); // décalage de mise en page : espaces sans surlignage
 
 function ligneFiche(et, en, ...valeur) {
   const debut = en ? `> ${et}/` : `> ${et}`;
   const blanc = " ".repeat(Math.max(1, LARGEUR_LIBELLE - debut.length - (en ? en.length : 0)));
-  return [texteDroit(debut), texteItalique(en || ""), texteDroit(blanc), ...valeur];
+  return [texteDroit(debut), texteItalique(en || ""), texteVide(blanc), ...valeur];
 }
 
 function suiteFiche(morceau) {
-  return [texteDroit(" ".repeat(LARGEUR_LIBELLE)), morceau];
+  return [texteVide(" ".repeat(LARGEUR_LIBELLE)), morceau];
 }
 
 const FIABILITE_ET = { sure: "kindel", probable: "tõenäoline", uncertain: "ebakindel" };
@@ -1945,7 +1946,7 @@ function lancerFiche(f, g) {
   const suite = lignes.flatMap((l, i) => (i ? [texteDroit("\n"), ...l] : l)).filter((m) => m.t);
   ficheMorceaux = suite.map((m) => {
     const el = document.createElement("span");
-    el.style.background = "#000"; // surlignage : chaque lettre et chaque espace sur fond noir
+    if (!m.vide) el.style.background = "#000"; // surlignage du texte ; les décalages restent transparents
     if (m.italique) el.style.fontStyle = "italic";
     return { t: m.t, el };
   });

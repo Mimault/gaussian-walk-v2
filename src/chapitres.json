@@ -22,9 +22,9 @@
   {
    "n": 2,
    "dates": "1914",
-   "fr": "Une course impériale",
-   "et": "Keiserlik võidusõit",
-   "en": "An imperial race",
+   "fr": "La course automobile Victoria",
+   "et": "Victoria autovõistlus",
+   "en": "The Victoria motor race",
    "inv": [
     "ERM Fk 359:440/1",
     "ERM Fk 359:440/2",
@@ -90,7 +90,8 @@
    "en": "The military zone",
    "inv": [
     "ERM Fk 2994:1694",
-    "ERM Fk 3074:201"
+    "ERM Fk 3074:201",
+    "ERM Fk 2453:14"
    ]
   },
   {
@@ -102,7 +103,6 @@
    "inv": [
     "ERM Fk 2151:2",
     "ERM Fk 2183:2",
-    "ERM Fk 2453:14",
     "ERM Fk 2320:5",
     "ERM Fk 2320:6",
     "ERM Fk 2321:11",
