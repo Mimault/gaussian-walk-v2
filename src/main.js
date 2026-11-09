@@ -169,6 +169,9 @@ const params = {
   seqFlashDuree: 0.8,      // s : retombée du flash blanc
   ficheVisible: true,      // fiche MuIS tapée en haut à gauche
   ficheVitesse: 45,        // caractères par seconde
+  chapitreVisible: true,   // chapitre en haut à droite
+  chapitreFondu: 1.5,      // s : apparition en fondu d'un nouveau chapitre
+  chapitreVideDuree: 4,    // s : temps d'affichage, dans le noir, d'un chapitre sans image
   seqOrbiteDuree: 21.5,    // s : durée de l'orbite autour du manoir
   seqPauseFin: 0,          // s : après l'orbite, avant le rapetissement (place prévue pour une autre phase)
   horsCadreTaille: 0.25,   // taille des splats hors du cadre de la photo pendant la pose (1 = normale)
@@ -724,6 +727,9 @@ fHud.add(params, "hudVisible").name("Afficher").onChange((v) => {
 });
 fHud.add(params, "ficheVisible").name("Fiche MuIS (haut gauche)");
 fHud.add(params, "ficheVitesse", 5, 200, 1).name("Fiche : vitesse de frappe");
+fHud.add(params, "chapitreVisible").name("Chapitre (haut droite)");
+fHud.add(params, "chapitreFondu", 0, 5, 0.1).name("Chapitre : fondu (s)");
+fHud.add(params, "chapitreVideDuree", 0, 15, 0.5).name("Chapitre sans image (s)");
 fHud.add(params, "hudOpacite", 0, 1, 0.01).name("Opacité").onChange((v) => {
   hud.style.opacity = v;
 });
@@ -1394,6 +1400,7 @@ function loadScene(index) {
 async function chargerMonde(index, essais) {
   const nextIndex = (index + sceneFiles.length) % sceneFiles.length; // boucle : après la dernière, la première
   const monde = sceneFiles[nextIndex];
+  const intermede = annoncerChapitre(monde); // on est dans le noir : le nouveau chapitre apparaît ici, en fondu
   // Densité demandée, ou l'autre si elle manque dans ce dossier
   const densite = monde.fichiers[DENSITE] ? DENSITE : Object.keys(monde.fichiers)[0];
   const name = `${monde.photo} ${monde.version} (${densite})`;
@@ -1421,6 +1428,9 @@ async function chargerMonde(index, essais) {
     loadingScene = false;
     return;
   }
+
+  mondeEnChargement = null;  // chargé : la barre s'efface, même si un chapitre sans image reste à l'écran
+  await intermede;           // le monde attend la fin de l'annonce d'un chapitre sans image
 
   // Échantillon de gaussiennes de la nouvelle scène : sert à mesurer sa hauteur (ici)
   // et ses distances à la caméra (au début de l'apparition), pour l'ordre spatial
@@ -1740,6 +1750,79 @@ function updatePhoto() {
   flashDiv.style.opacity = Math.max(params.seqPhoto ? flashBlanc : 0, flashLevel); // séquence, ou prise de vue
 }
 
+// ---------- V2 : chapitre en haut à droite ----------
+// Plusieurs mondes appartiennent au même chapitre (src/chapitres.json). Le texte reste affiché tant que le chapitre
+// dure ; quand il change, dans le noir entre deux mondes, l'ancien s'efface et le nouveau apparaît en fondu.
+const chapitreDiv = document.createElement("div");
+chapitreDiv.style.cssText =
+  "position:fixed; top:16px; right:16px; z-index:6; pointer-events:none; white-space:pre; text-align:right; opacity:0;" +
+  "font:13px/1.55 ui-monospace, Consolas, 'Courier New', monospace; color:#e6e6e6;" +
+  "text-shadow:0 0 4px rgba(0,0,0,.9), 0 0 1px rgba(0,0,0,1);";
+document.body.appendChild(chapitreDiv);
+let chapitreAffiche = null; // numéro du chapitre à l'écran
+let chapitreJeton = 0;      // annule un fondu en attente si le chapitre change encore
+
+function ecrireChapitre(c) {
+  const span = (t, italique) => {
+    const el = document.createElement("span");
+    el.textContent = t;
+    if (italique) el.style.fontStyle = "italic";
+    return el;
+  };
+  chapitreDiv.replaceChildren(
+    span(`Peatükk/`), span(`Chapter`, true), span(` ${c.n} · ${c.dates}\n`),
+    span(`${c.et}\n`),
+    span(c.en, true),
+    ...(c.sansImage ? [span(`\nPilte ei ole/`), span(`No images`, true)] : []),
+  );
+}
+
+// En avançant, un chapitre sans monde s'annonce seul dans le noir avant le chapitre suivant
+let chapitreCourse = 0;
+async function annoncerChapitre(monde) {
+  const course = ++chapitreCourse;
+  const vides = monde.chapitresVides || [];
+  if (chapitreAffiche !== null && monde.chapitre && chapitreAffiche < monde.chapitre.n) {
+    for (const c of vides) {
+      afficherChapitre({ ...c, sansImage: true });
+      await new Promise((fin) => setTimeout(fin, params.chapitreVideDuree * 1000));
+      if (course !== chapitreCourse) return;
+    }
+  }
+  afficherChapitre(monde.chapitre);
+}
+
+function afficherChapitre(c) {
+  const n = c?.n ?? null;
+  if (n === chapitreAffiche) return; // même chapitre : le texte ne bouge pas
+  const visible = chapitreAffiche !== null;
+  chapitreAffiche = n;
+  const jeton = ++chapitreJeton;
+  const apparaitre = () => {
+    if (jeton !== chapitreJeton || !c) return;
+    ecrireChapitre(c);
+    chapitreDiv.style.transition = "none";
+    chapitreDiv.style.opacity = 0;
+    void chapitreDiv.offsetWidth; // le navigateur doit voir l'opacité 0 avant de lancer le fondu
+    chapitreDiv.style.transition = `opacity ${params.chapitreFondu}s ease`;
+    chapitreDiv.style.opacity = 1;
+  };
+  if (visible) {
+    chapitreDiv.style.transition = "opacity .4s ease";
+    chapitreDiv.style.opacity = 0;
+    setTimeout(apparaitre, 400);
+  } else {
+    apparaitre();
+  }
+}
+
+// Le panneau de réglages occupe le coin : tant qu'il est là, le chapitre se place à sa gauche
+function placerChapitre() {
+  chapitreDiv.style.display = params.chapitreVisible ? "block" : "none";
+  const panneau = gui.domElement.getBoundingClientRect();
+  chapitreDiv.style.right = panneau.width > 0 ? `${window.innerWidth - panneau.left + 16}px` : "16px";
+}
+
 // ---------- V2 : fiche MuIS, tapée façon terminal en haut à gauche ----------
 // Mêmes éléments que la fiche « At a glance » de MyMuiZ (03_OUTILS\prod\fiche_muis.py), en estonien puis en
 // anglais (en italique), sous la forme Maailm/World. Le contenu technique (modèles, outils) n'est pas traduit.
@@ -1842,6 +1925,7 @@ function effacerFiche() {
 
 function updateFiche(dt) {
   ficheDiv.style.display = params.ficheVisible ? "block" : "none";
+  placerChapitre();
   ficheN += dt * params.ficheVitesse;
   const n = Math.floor(ficheN);
   if (n === ficheAffiche || !ficheMorceaux.length) return;

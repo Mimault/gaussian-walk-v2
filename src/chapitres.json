@@ -1,0 +1,135 @@
+{
+ "outil": "03_OUTILS/prod/chapitres.py",
+ "a_relire": "titres estoniens et anglais",
+ "chapitres": [
+  {
+   "n": 1,
+   "dates": "1840-1914",
+   "fr": "Le manoir des Liphart",
+   "et": "Liphartite mõis",
+   "en": "The Liphart manor",
+   "inv": [
+    "ERM Fk 542:77",
+    "ERM Fk 554:14",
+    "ERM Fk 888:131",
+    "ERM Fk 2921:2",
+    "ERM Fk 2921:3",
+    "ERM Fk 625:156",
+    "ERM Fk 2921:4",
+    "ERM Fk 449:217"
+   ]
+  },
+  {
+   "n": 2,
+   "dates": "1914",
+   "fr": "Une course impériale",
+   "et": "Keiserlik võidusõit",
+   "en": "An imperial race",
+   "inv": [
+    "ERM Fk 359:440/1",
+    "ERM Fk 359:440/2",
+    "ERM Fk 359:440/3",
+    "ERM Fk 359:440/5",
+    "ERM Fk 359:440/12"
+   ]
+  },
+  {
+   "n": 3,
+   "dates": "1921-1940",
+   "fr": "Le château devient musée",
+   "et": "Lossist saab muuseum",
+   "en": "The castle becomes a museum",
+   "inv": [
+    "ERM TM Fk 1066",
+    "ERM Fk 666:1",
+    "ERM Fk 937:146",
+    "ERM Fk 2955:370",
+    "ERM Fk 2959:236",
+    "ERM Fk 2959:238",
+    "ERM Fk 752:9",
+    "ERM Fk 937:23",
+    "ERM Fk 2189:36"
+   ]
+  },
+  {
+   "n": 4,
+   "dates": "1940-1944",
+   "fr": "La guerre à Raadi",
+   "et": "Sõda Raadil",
+   "en": "War at Raadi",
+   "inv": [
+    "ERM Fk 937:99",
+    "ERM Fk 999:26",
+    "ERM Fk 999:4",
+    "ERM Fk 990:12"
+   ]
+  },
+  {
+   "n": 5,
+   "dates": "1944-1949",
+   "fr": "L'évacuation, l'incendie, les ruines",
+   "et": "Evakueerimine, tulekahju, varemed",
+   "en": "Evacuation, fire, ruins",
+   "inv": [
+    "ERM Fk 1533:16",
+    "ERM Fk 1533:17",
+    "ERM Fk 1533:18",
+    "ERM Fk 1533:19",
+    "ERM Fk 1533:20",
+    "ERM Fk 1533:21",
+    "ERM Fk 1056:14",
+    "ERM Fk 1056:15",
+    "ERM Fk 1136:24"
+   ]
+  },
+  {
+   "n": 6,
+   "dates": "1950-1985",
+   "fr": "La zone militaire",
+   "et": "Sõjaväetsoon",
+   "en": "The military zone",
+   "inv": [
+    "ERM Fk 2994:1694",
+    "ERM Fk 3074:201"
+   ]
+  },
+  {
+   "n": 7,
+   "dates": "1985-1991",
+   "fr": "Le retour vers les ruines et l'indépendance de l'Estonie",
+   "et": "Tagasitulek varemete juurde ja Eesti taasiseseisvumine",
+   "en": "Return to the ruins and the restoration of Estonian independence",
+   "inv": [
+    "ERM Fk 2151:2",
+    "ERM Fk 2183:2",
+    "ERM Fk 2453:14",
+    "ERM Fk 2320:5",
+    "ERM Fk 2320:6",
+    "ERM Fk 2321:11",
+    "ERM Fk 2321:12",
+    "ERM Fk 2989:279",
+    "ERM Fk 3051:7756",
+    "ERM Fk 3051:23006",
+    "ERM Fk 2357:1",
+    "ERM Fk 2357:32",
+    "ERM Fk 2357:34",
+    "ERM Fk 2357:37",
+    "ERM Fk 2357:38",
+    "ERM Fk 2411:21"
+   ]
+  },
+  {
+   "n": 8,
+   "dates": "2001-2016",
+   "fr": "Après",
+   "et": "Pärast",
+   "en": "After",
+   "inv": [
+    "ERM Fk 2936:458",
+    "ERM Fk 2936:471",
+    "ERM Fk 3110:428",
+    "ERM Fk 3110:841"
+   ]
+  }
+ ]
+}

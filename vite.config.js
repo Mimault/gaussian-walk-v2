@@ -162,7 +162,43 @@ function listeMondes() {
       }
     }
   }
-  return mondes.sort((a, b) => compareChrono(a.photo, b.photo));
+  // Ordre et chapitre : ceux de la feuille Raadi_corpus (src/chapitres.json, écrit par 03_OUTILS\prod\chapitres.py),
+  // retrouvés par le numéro d'inventaire de la fiche. Un monde absent de la feuille passe à la fin, par date.
+  const parInv = indexChapitres();
+  for (const m of mondes) {
+    const info = parInv.get(m.fiche?.inv);
+    m.rang = info ? info.rang : Infinity;
+    m.chapitre = info ? info.chapitre : null;
+  }
+  mondes.sort((a, b) => (a.rang !== b.rang ? a.rang - b.rang : compareChrono(a.photo, b.photo)));
+  // Un chapitre sans aucun monde s'annonce quand même, avant le premier monde du chapitre suivant
+  const avecMonde = new Set(mondes.map((m) => m.chapitre?.n));
+  const vides = lireChapitres().filter((c) => !avecMonde.has(c.n)).map(({ inv, ...c }) => c);
+  let precedent = 0;
+  for (const m of mondes) {
+    if (!m.chapitre) continue;
+    m.chapitresVides = vides.filter((c) => c.n > precedent && c.n < m.chapitre.n);
+    precedent = m.chapitre.n;
+  }
+  return mondes;
+}
+
+function lireChapitres() {
+  try {
+    return JSON.parse(fs.readFileSync(path.resolve(process.cwd(), "src", "chapitres.json"), "utf-8")).chapitres;
+  } catch (e) {
+    console.warn("chapitres.json illisible :", e.message);
+    return [];
+  }
+}
+
+function indexChapitres() {
+  const index = new Map();
+  let rang = 0;
+  for (const { inv, ...chapitre } of lireChapitres()) {
+    for (const numero of inv) index.set(numero, { rang: rang++, chapitre });
+  }
+  return index;
 }
 
 function capturesPlugin() {
@@ -238,6 +274,8 @@ function capturesPlugin() {
           version: m.version,
           cadrage: m.cadrage,
           fiche: m.fiche,
+          chapitre: m.chapitre,
+          chapitresVides: m.chapitresVides || [],
           fichiers: Object.fromEntries(Object.entries(m.fichiers).map(([d, f]) => [d, f.nom])),
         }));
         res.setHeader("Content-Type", "application/json");
