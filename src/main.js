@@ -615,7 +615,6 @@ function makeForcesModifier(grow, fall, dMin, dMax, origin) {
 // Densité chargée : pleine densité par défaut ; http://localhost:5173/?densite=500k pour la version allégée.
 const MONDES_URL = "/api/mondes-file/";
 const DENSITE = new URLSearchParams(location.search).get("densite") === "500k" ? "500k" : "full_res";
-const SCENE_KEY = "gaussian-walk-v2.scene"; // dernier monde vu, restauré au rechargement (distinct de la V1)
 let sceneFiles = [];       // V2 : objets { photo, corpus, version, fichiers: { full_res, 500k } }
 let sceneIndex = 0;
 let splat = null;          // la scène affichée
@@ -1412,6 +1411,7 @@ function loadScene(index) {
 
 // Flèches et boutons : on part du monde déjà demandé, pour pouvoir faire défiler plusieurs mondes d'affilée
 function changerDeMonde(dir) {
+  params.seqActive = true; // changer de monde remet toujours en mode automatique (comme L)
   loadScene((loadingScene ? mondeVise : sceneIndex) + dir);
 }
 
@@ -1482,9 +1482,6 @@ async function chargerMonde(index, essais) {
   switchToIn(next);
   wasIdle = false; // force un premier calcul des forces sur la nouvelle scène
   showToast(`${sceneIndex + 1} / ${sceneFiles.length} — ${name}`);
-  try {
-    localStorage.setItem(SCENE_KEY, monde.photo);
-  } catch (e) {}
   loadingScene = false;
   if (params.transitionDuree <= 0) finishTransition(); // durée 0 : changement sec
 }
@@ -1797,8 +1794,7 @@ function updatePhoto() {
 const chapitreDiv = document.createElement("div");
 chapitreDiv.style.cssText =
   "position:fixed; top:16px; right:16px; z-index:6; pointer-events:none; white-space:pre; text-align:right; opacity:0;" +
-  "font:13px/1.55 ui-monospace, Consolas, 'Courier New', monospace; color:#e6e6e6;" +
-  "text-shadow:0 0 4px rgba(0,0,0,.9), 0 0 1px rgba(0,0,0,1);";
+  "font:13px/1.55 ui-monospace, Consolas, 'Courier New', monospace; color:#fff;";
 document.body.appendChild(chapitreDiv);
 let chapitreAffiche = null; // numéro du chapitre à l'écran
 let chapitreJeton = 0;      // annule un fondu en attente si le chapitre change encore
@@ -1807,6 +1803,7 @@ function ecrireChapitre(c) {
   const span = (t, italique) => {
     const el = document.createElement("span");
     el.textContent = t;
+    el.style.background = "#000"; // surlignage : chaque lettre et chaque espace sur fond noir
     if (italique) el.style.fontStyle = "italic";
     return el;
   };
@@ -1871,8 +1868,7 @@ function placerChapitre() {
 const ficheDiv = document.createElement("div");
 ficheDiv.style.cssText =
   "position:fixed; top:16px; left:16px; z-index:6; pointer-events:none; white-space:pre;" +
-  "font:13px/1.55 ui-monospace, Consolas, 'Courier New', monospace; color:#e6e6e6;" +
-  "text-shadow:0 0 4px rgba(0,0,0,.9), 0 0 1px rgba(0,0,0,1);";
+  "font:13px/1.55 ui-monospace, Consolas, 'Courier New', monospace; color:#fff;";
 document.body.appendChild(ficheDiv);
 let ficheMorceaux = []; // { t: texte, el: <span> }
 let ficheN = 0;         // nombre de caractères déjà tapés
@@ -1949,6 +1945,7 @@ function lancerFiche(f, g) {
   const suite = lignes.flatMap((l, i) => (i ? [texteDroit("\n"), ...l] : l)).filter((m) => m.t);
   ficheMorceaux = suite.map((m) => {
     const el = document.createElement("span");
+    el.style.background = "#000"; // surlignage : chaque lettre et chaque espace sur fond noir
     if (m.italique) el.style.fontStyle = "italic";
     return { t: m.t, el };
   });
@@ -2253,11 +2250,7 @@ async function initScenes() {
     return;
   }
 
-  let saved = null;
-  try {
-    saved = localStorage.getItem(SCENE_KEY);
-  } catch (e) {}
-  await loadScene(Math.max(0, sceneFiles.findIndex((m) => m.photo === saved)));
+  await loadScene(0); // on commence toujours au début du chapitre 1
 }
 
 // Déclenchement par la couche de contrôle : un appui = une scène
