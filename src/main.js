@@ -621,6 +621,20 @@ function makeForcesModifier(grow, fall, dMin, dMax, origin) {
 // Densité chargée : pleine densité par défaut ; http://localhost:5173/?densite=500k pour la version allégée.
 const MONDES_URL = "/api/mondes-file/";
 const DENSITE = new URLSearchParams(location.search).get("densite") === "500k" ? "500k" : "full_res";
+// Mondes chargés : les deux corpus par défaut ; ?corpus=manoirs ou ?corpus=portes pour n'en garder qu'un.
+// Se combine avec la densité : ?corpus=portes&densite=500k. Les chapitres sans monde dans ce choix sont sautés.
+const CORPUS_CHOIX = { tous: null, manoirs: "raadi_manor", portes: "raadi_porte" };
+const CORPUS = (() => {
+  const v = new URLSearchParams(location.search).get("corpus");
+  return v in CORPUS_CHOIX ? v : "tous";
+})();
+// Change un réglage de l'adresse et recharge la page (menus « Mondes » du panneau)
+function changerAdresse(cle, valeur, parDefaut) {
+  const p = new URLSearchParams(location.search);
+  if (valeur === parDefaut) p.delete(cle); else p.set(cle, valeur);
+  const q = p.toString();
+  location.href = location.pathname + (q ? "?" + q : "");
+}
 let sceneFiles = [];       // V2 : objets { photo, corpus, version, fichiers: { full_res, 500k } }
 let sceneIndex = 0;
 let splat = null;          // la scène affichée
@@ -677,7 +691,16 @@ function makeSplat(url, startGrow = 1) {
 }
 
 // ---------- Panneau de réglages ----------
-const gui = new GUI({ title: "Forces" });
+const gui = new GUI({ title: "Réglages" });
+
+// Mondes chargés : chaque menu réécrit l'adresse (?corpus=…, ?densite=…) et recharge la page
+const fMondes = gui.addFolder("Mondes");
+const choixMondes = { corpus: CORPUS, densite: DENSITE };
+fMondes.add(choixMondes, "corpus", { "Manoirs et portes": "tous", "Manoirs": "manoirs", "Portes": "portes" })
+  .name("Corpus").onChange((v) => changerAdresse("corpus", v, "tous"));
+fMondes.add(choixMondes, "densite", { "Pleine densité": "full_res", "500k (allégée)": "500k" })
+  .name("Densité").onChange((v) => changerAdresse("densite", v, "full_res"));
+
 const fRalenti = gui.addFolder("Ralenti");
 fRalenti.add(params, "vitesseGlobale", 0.05, 2, 0.05).name("Vitesse");
 fRalenti.add(params, "ralentirCamera").name("Caméra");
@@ -829,9 +852,17 @@ fPerf.add({
 // (celles de reglages\reglages_2026-11-09.json).
 const STORAGE_KEY = "gaussian-walk-v2.reglages.v8";
 
+// Le dossier « Mondes » vit dans l'adresse, pas dans les réglages : on ne l'enregistre ni ne le recharge
+// (le recharger relancerait la page avec l'ancien choix).
+function reglagesSansMondes(r) {
+  if (r && r.folders) delete r.folders["Mondes"];
+  return r;
+}
+function chargerReglages(r) { gui.load(reglagesSansMondes(r)); }
+
 function saveSettings() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(gui.save()));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(reglagesSansMondes(gui.save())));
   } catch (e) {
     console.warn("Sauvegarde des réglages impossible :", e);
   }
@@ -842,7 +873,7 @@ function loadSettings() {
     const saved = localStorage.getItem(STORAGE_KEY);
     // Sans réglages enregistrés, on garde les valeurs par défaut du code (reglages_2026-11-09.json) ;
     // on ne reprend plus ceux de la V1.
-    if (saved) gui.load(JSON.parse(saved)); // applique aussi les effets (résolution, HUD…)
+    if (saved) chargerReglages(JSON.parse(saved)); // applique aussi les effets (résolution, HUD…)
     // Nouvelles valeurs par défaut, appliquées une seule fois par-dessus les réglages enregistrés
     // (Celles du 7 novembre 2026 ont été retirées : les valeurs par défaut du code sont désormais
     //  celles de reglages\reglages_2026-11-09.json, qui en tiennent compte.)
@@ -861,7 +892,7 @@ function loadSettings() {
 
 // Exporter : télécharge un fichier .json avec tous les réglages actuels
 function exportSettings() {
-  const blob = new Blob([JSON.stringify(gui.save(), null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(reglagesSansMondes(gui.save()), null, 2)], { type: "application/json" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = "gaussian-walk-reglages.json";
@@ -877,7 +908,7 @@ fileInput.addEventListener("change", async () => {
   const file = fileInput.files[0];
   if (!file) return;
   try {
-    gui.load(JSON.parse(await file.text()));
+    chargerReglages(JSON.parse(await file.text()));
     saveSettings();
   } catch (e) {
     alert("Ce fichier ne contient pas de réglages valides.");
@@ -2251,6 +2282,8 @@ async function initScenes() {
     const res = await fetch("/api/mondes-list");
     if (!res.ok) throw new Error("réponse " + res.status);
     sceneFiles = await res.json();
+    const garde = CORPUS_CHOIX[CORPUS];
+    if (garde) sceneFiles = sceneFiles.filter((m) => m.corpus === garde);
   } catch (e) {
     console.warn("Liste des scènes indisponible :", e);
     sceneFiles = [];
